@@ -1,6 +1,6 @@
 ---
 title: "Project Proposal"
-author: "Team name - Team member 1, Team member 2, Team member 3, Team member 4"
+author: "ggteam - Will Chen, Katelyn Cai, Hannah Choi, Weston Slayton"
 format: pdf
 execute: 
   warning: false
@@ -15,6 +15,7 @@ library(tidymodels)
 # add other packages as needed
 
 # add code to load data
+
 ```
 
 ## Introduction
