@@ -77,7 +77,9 @@ ggplot(data = top_users, aes(x = reorder(user_name, count), y = count)) +
   theme_minimal() 
 ```
 
-...
+The response variable that we will be using is n_plays. This represents the amount of views that a video obtained. Possible predictors include n_likes, n_shares, n_comments, n_followers, \# of hashtags (which will have to be mutated from the hashtags variable), and video_length. We assume that each of these predictors will have a positive effect on n_plays except for video_length.
+
+To perform this analysis, we will use multiple linear regression. This is because we are using a quantitative response variable. We will be able to predict the amount of views a video has based on varoius predictors. Logistic regression isn't useful here, as our response variable isn't categorical, and we aren't looking for a probability.
 
 ## Data dictionary
 
