@@ -60,7 +60,22 @@ ggplot(data = tiktok, aes(x = user_name)) +
  theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 1))
 ```
 
-## Analysis approach
+```{r}
+# Since there are too many user names, filter top 20
+user_counts <- tiktok |>
+  group_by(user_name) |>
+  summarize(count = n()) |>
+  arrange(-count)
+
+N <- 20
+top_users <- head(user_counts, N)
+
+ggplot(data = top_users, aes(x = reorder(user_name, count), y = count)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +  
+  labs(x = "Tiktok Username", y = "Count", title = "Top 20 Distribution of Usernames") +
+  theme_minimal() 
+```
 
 ...
 
