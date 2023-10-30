@@ -85,7 +85,8 @@ top_users <- head(user_counts, N)
 ggplot(data = top_users, aes(x = reorder(user_name, count), y = count)) +
   geom_bar(stat = "identity") +
   coord_flip() +  
-  labs(x = "Tiktok Username", y = "Count", title = "Top 20 Distribution of Usernames (in terms of videos posted)") +
+  labs(x = "Tiktok Username", y = "Count", title = "Top 20 Distribution of Usernames 
+       (in terms of videos posted)") +
   theme_minimal() 
 ```
 
@@ -96,7 +97,8 @@ filtered_tiktok <- tiktok |>
 ggplot(data = filtered_tiktok, aes(x = user_name, y = n_plays / 10000)) +
   geom_boxplot() +
   coord_flip() +  
-  labs(x = "Tiktok Username", y = "Video Views (in 10000)", title = "Video Views Distribution for Top 20 Users (in terms of videos posted)") +
+  labs(x = "Tiktok Username", y = "Video Views (in 10000)", title = "Video Views 
+  Distribution for Top 20 Users (in terms of videos posted)") +
   theme_minimal()
 ```
 
@@ -105,7 +107,7 @@ From the plot, we can see a few users getting more views on average compared to 
 A potential interaction effect could be between number of likes and number of comments, since likes and comments can both increase a video's visibility, so their interaction might have a multiplicative effect on views:
 
 $$
-\text{video\_views} = \beta_0 + \beta_1 \cdot \text{num\_comments} + \beta_2 \cdot \text{num\_likes} + \beta_3 \cdot (\text{num\_comments} \times \text{num\_likes}) + other\_variables + \epsilon 
+\text{video\_views} = \beta_0 + \beta_1 \cdot \text{num\_comments} + \beta_2 \cdot \text{num\_likes} + \\ \beta_3 \cdot (\text{num\_comments} \times \text{num\_likes}) + other\_variables + \epsilon 
 $$
 
 For the data cleaning and model preparation process, we'll delete variables that aren't really useful such as create time, sounds/songs used (since there are so many unique songs - as well as different spellings to the same song -- and customs sounds that could use a particular song, it becomes useless in model) and hashtags (since many videos don't include one). We'll also add a column that includes the following of the user, which will be useful in determining if a video gets a certain amount of views.
