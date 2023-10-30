@@ -125,4 +125,4 @@ To perform this analysis, we will use multiple linear regression. This is becaus
 
 ## Data dictionary
 
-The data dictionary can be found [here](ADD%20LINK!!!) \[Update the link and remove this note!\]
+| The data dictionary can be found [here](https://github.com/ivantran96/TikTok_famous/tree/main/Datasets/Trending%20Videos%20Data%20Collection). [README link](https://github.com/ivantran96/TikTok_famous/tree/main)
