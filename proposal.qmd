@@ -54,14 +54,14 @@ ggplot(data = tiktok, aes(x = video_length)) +
 ```
 
 ```{r}
-ggplot(data = tiktok, aes(x = user_name)) +
-  geom_boxplot() + 
-  labs(x = "Video Length (seconds)) ", y = "Count", title = "Distribution of Video Length") +
- theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 1))
+ggplot(tiktok, aes(x = video_length, y = n_plays / 100000)) +
+  geom_point() + 
+  labs(title = "Relationship between Number of Plays and Video Length", x = "Video Length", y = "Number of Plays (in 100000)")
+
 ```
 
 ```{r}
-# Since there are too many user names, filter top 20
+# since there are too many user names, filter top 20
 user_counts <- tiktok |>
   group_by(user_name) |>
   summarize(count = n()) |>
@@ -73,8 +73,19 @@ top_users <- head(user_counts, N)
 ggplot(data = top_users, aes(x = reorder(user_name, count), y = count)) +
   geom_bar(stat = "identity") +
   coord_flip() +  
-  labs(x = "Tiktok Username", y = "Count", title = "Top 20 Distribution of Usernames") +
+  labs(x = "Tiktok Username", y = "Count", title = "Top 20 Distribution of Usernames (in terms of videos posted)") +
   theme_minimal() 
+```
+
+```{r}
+filtered_tiktok <- tiktok |>
+  filter(user_name %in% top_users$user_name)
+
+ggplot(data = filtered_tiktok, aes(x = user_name, y = n_plays / 100000)) +
+  geom_boxplot() +
+  coord_flip() +  
+  labs(x = "Tiktok Username", y = "Video Views (in 100000)", title = "Video Views Distribution for Top 20 Users (in terms of videos posted)") +
+  theme_minimal()
 ```
 
 The response variable that we will be using is n_plays. This represents the amount of views that a video obtained. Possible predictors include n_likes, n_shares, n_comments, n_followers, \# of hashtags (which will have to be mutated from the hashtags variable), and video_length. We assume that each of these predictors will have a positive effect on n_plays except for video_length.
