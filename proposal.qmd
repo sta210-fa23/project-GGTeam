@@ -28,7 +28,7 @@ The dataset comes from the 'top_users_vids.csv' file (under folder 'Trending Vid
 
 The original data curators collected the data using David Teather's open-source Unofficial Tiktok API (found at <https://github.com/davidteather/TikTok-Api>), which uses Python to scrape Tiktok data and fetch the most trending videos, specific user information, and much more. Using the list of top Tiktokers, the curators compiled a list of users with the getSuggestedUsersbyIDCrawler api method, which used the top TikTokers and collected the suggested users. Using the byUsername method, they collected video data of the 25 most recent posts of each user from the top TikTokers and the suggested list. The curators also used the API's bySound method to collect videos using some of the most famous songs on TikTok to get an idea of how the choice of music can impact the potential of a video to become a trending video.
 
-The dataset has 13 columns and 12,559 rows. The columns cover important metrics for trending videos such as video length, hashtags used, songs/sounds used, and number of likes, shares, comments, plays, and followers (and their total number of likes and videos). There are also less relevant variables such as creator username, create time, video ID which we will not use in our analysis. Variables id, create_time, video_length, n_likes, n_shares, n_comments, n_plays, n_followers, n_total_likes, and n_total_vids are numerical while the others are categorical.
+The dataset has 13 columns and 12,559 rows. The columns cover important metrics for trending videos such as video length, hashtags used, and number of likes, shares, comments, plays, and followers (and their total number of likes and videos). There are also less relevant variables such as create time, video ID which we will not use in our analysis. Variables id, create_time, video_length, n_likes, n_shares, n_comments, n_plays, n_followers, n_total_likes, and n_total_vids are numerical while the others are categorical.
 
 \pagebreak
 
@@ -39,6 +39,12 @@ tiktok <- read.csv("data/top_users_vids.csv")
 ```
 
 ```{r}
+glimpse(tiktok)
+```
+
+We are interested in predicting the number of times a video will be played. Therefore, we set n_plays as our response variable.
+
+```{r}
 tiktok |>
   ggplot(aes(x = n_plays / 100000)
          ) + 
@@ -47,6 +53,8 @@ tiktok |>
   coord_cartesian(xlim = c(0, 750))
 ```
 
+We put video_length as our quantitative predictor variable to explore. We are interested in knowing if Tiktok's algorithm prefers recommending shorter videos or if users are more likely to view short videos as opposed to longer ones.
+
 ```{r}
 ggplot(data = tiktok, aes(x = video_length)) +
   geom_histogram() + 
@@ -54,11 +62,15 @@ ggplot(data = tiktok, aes(x = video_length)) +
 ```
 
 ```{r}
-ggplot(tiktok, aes(x = video_length, y = n_plays / 100000)) +
+ggplot(tiktok, aes(x = video_length, y = n_plays / 1000)) +
   geom_point() + 
-  labs(title = "Relationship between Number of Plays and Video Length", x = "Video Length", y = "Number of Plays (in 100000)")
+  labs(title = "Relationship between Number of Plays and Video Length", x = "Video Length", y = "Number of Plays (in 1000)")
 
 ```
+
+The relationship seems a bit weak, with a few outliers that includes video_length greater than 75. However there seems to be a greater overall average view with short video_length.
+
+Now we are interesting in knowing if a few users are drawing in most of the views. Since currently we don't have access to user popularity, it suffices to just find the users who uploaded the most and find the respectively views for their videos.
 
 ```{r}
 # since there are too many user names, filter top 20
@@ -81,12 +93,31 @@ ggplot(data = top_users, aes(x = reorder(user_name, count), y = count)) +
 filtered_tiktok <- tiktok |>
   filter(user_name %in% top_users$user_name)
 
-ggplot(data = filtered_tiktok, aes(x = user_name, y = n_plays / 100000)) +
+ggplot(data = filtered_tiktok, aes(x = user_name, y = n_plays / 10000)) +
   geom_boxplot() +
   coord_flip() +  
-  labs(x = "Tiktok Username", y = "Video Views (in 100000)", title = "Video Views Distribution for Top 20 Users (in terms of videos posted)") +
+  labs(x = "Tiktok Username", y = "Video Views (in 10000)", title = "Video Views Distribution for Top 20 Users (in terms of videos posted)") +
   theme_minimal()
 ```
+
+From the plot, we can see a few users getting more views on average compared to other users. This might indicate a stronger relationship between the user and the number of plays they receive per video.
+
+A potential interaction effect could be between number of likes and number of comments, since likes and comments can both increase a video's visibility, so their interaction might have a multiplicative effect on views:
+
+$$
+\text{video\_views} = \beta_0 + \beta_1 \cdot \text{num\_comments} + \beta_2 \cdot \text{num\_likes} + \beta_3 \cdot (\text{num\_comments} \times \text{num\_likes}) + other\_variables + \epsilon 
+$$
+
+For the data cleaning and model preparation process, we'll delete variables that aren't really useful such as create time, sounds/songs used (since there are so many unique songs - as well as different spellings to the same song -- and customs sounds that could use a particular song, it becomes useless in model) and hashtags (since many videos don't include one). We'll also add a column that includes the following of the user, which will be useful in determining if a video gets a certain amount of views.
+
+```{r}
+tiktok |>
+  summarize_all(~sum(is.na(.)))
+```
+
+There seems to be no missing NULL value in our dataset with the exception of hash tags (tidyverse counted the empty list as a value).
+
+### **Analysis approach**
 
 The response variable that we will be using is n_plays. This represents the amount of views that a video obtained. Possible predictors include n_likes, n_shares, n_comments, n_followers, \# of hashtags (which will have to be mutated from the hashtags variable), and video_length. We assume that each of these predictors will have a positive effect on n_plays except for video_length.
 
