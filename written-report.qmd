@@ -26,6 +26,27 @@ Below is a brief description of the sections to focus on in the draft:
 
 This section includes an introduction to the project motivation, data, and research question. Describe the data and definitions of key variables. It should also include some exploratory data analysis. All of the EDA won't fit in the body of the report, so focus on the EDA for the response variable and a few other interesting variables and relationships.
 
+```{r}
+
+tiktok_users <- tiktok|>
+  group_by(user_name)|>
+  summarize(likes = mean(n_likes),
+            shares = mean(n_shares),
+            comments = mean(n_comments),
+            plays = mean(n_plays),
+            followers = mean(n_followers),
+            video_length = mean(video_length))
+```
+
+```{r}
+
+tiktok_users |>
+  ggplot(aes(x = followers)) + 
+  geom_histogram() + 
+  labs(x = "Followers", y = "Count", title = "Distribution of Number of Followers") + 
+  scale_x_continuous(labels = label_number())
+```
+
 #### Methodology
 
 This section includes a brief description of your modeling process. Explain the reasoning for the type of model you're fitting, predictor variables considered for the model including any interactions. Additionally, show how you arrived at the final model by describing the model selection process, any variable transformations (if needed), and any other relevant considerations that were part of the model fitting process.
@@ -37,17 +58,6 @@ In this section, you will output the final model and include a brief discussion 
 This section also includes initial interpretations and conclusions drawn from the model.
 
 Your written report goes here!
-
-```{r}
-tiktok_users <- tiktok|>
-  group_by(user_name)|>
-  summarize(likes = mean(n_likes),
-            shares = mean(n_shares),
-            comments = mean(n_comments),
-            plays = mean(n_plays),
-            followers = mean(n_followers),
-            video_length = mean(video_length))
-```
 
 ::: callout-important
 Before you submit, make sure your code chunks are turned off with `echo: false` and there are no warnings or messages with `warning: false` and `message: false` in the YAML.
