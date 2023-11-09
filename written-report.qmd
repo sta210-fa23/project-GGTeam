@@ -35,7 +35,9 @@ tiktok_users <- tiktok|>
             comments = mean(n_comments),
             plays = mean(n_plays),
             followers = mean(n_followers),
-            video_length = mean(video_length))
+            video_length = mean(video_length),
+            total_videos = mean(n_total_vids)) |>
+  mutate(video_length_bin = ntile(video_length, n=3))
 ```
 
 ```{r}
