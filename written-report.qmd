@@ -27,10 +27,9 @@ Below is a brief description of the sections to focus on in the draft:
 This section includes an introduction to the project motivation, data, and research question. Describe the data and definitions of key variables. It should also include some exploratory data analysis. All of the EDA won't fit in the body of the report, so focus on the EDA for the response variable and a few other interesting variables and relationships.
 
 ```{r}
-
 tiktok_users <- tiktok|>
-  group_by(user_name)|>
-  summarize(likes = mean(n_likes),
+  dplyr::group_by(user_name)|>
+  dplyr::summarize(likes = mean(n_likes),
             shares = mean(n_shares),
             comments = mean(n_comments),
             plays = mean(n_plays),
@@ -47,6 +46,13 @@ tiktok_users |>
   geom_histogram() + 
   labs(x = "Followers", y = "Count", title = "Distribution of Number of Followers") + 
   scale_x_continuous(labels = label_number())
+```
+
+```{r}
+tiktok_users_fit <- linear_reg() |>
+  set_engine("lm")|>
+  fit(followers ~ likes + shares + comments + plays + video_length_bin + total_videos, data=tiktok_users)
+vif(tiktok_users_fit$fit)
 ```
 
 #### Methodology
