@@ -112,6 +112,50 @@ resid_hist <- ggplot(data = tiktok_aug, aes(x = .resid)) +
   resid_hist
 ```
 
+```{r}
+ggplot(data = tiktok_aug, aes(x = likes, y = .resid)) +
+    geom_point() +
+    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+    labs(x = "Fitted values",
+         y = "Residuals",
+         title = "Residuals vs. fitted")
+
+ggplot(data = tiktok_aug, aes(x = shares, y = .resid)) +
+    geom_point() +
+    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+    labs(x = "Fitted values",
+         y = "Residuals",
+         title = "Residuals vs. fitted")
+
+ggplot(data = tiktok_aug, aes(x = comments, y = .resid)) +
+    geom_point() +
+    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+    labs(x = "Fitted values",
+         y = "Residuals",
+         title = "Residuals vs. fitted")
+
+ggplot(data = tiktok_aug, aes(x = plays, y = .resid)) +
+    geom_point() +
+    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+    labs(x = "Fitted values",
+         y = "Residuals",
+         title = "Residuals vs. fitted")
+
+ggplot(data = tiktok_aug, aes(x = video_length, y = .resid)) +
+    geom_point() +
+    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+    labs(x = "Fitted values",
+         y = "Residuals",
+         title = "Residuals vs. fitted")
+
+ggplot(data = tiktok_aug, aes(x = total_videos, y = .resid)) +
+    geom_point() +
+    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+    labs(x = "Fitted values",
+         y = "Residuals",
+         title = "Residuals vs. fitted")
+```
+
 #### Methodology
 
 This section includes a brief description of your modeling process. Explain the reasoning for the type of model you're fitting, predictor variables considered for the model including any interactions. Additionally, show how you arrived at the final model by describing the model selection process, any variable transformations (if needed), and any other relevant considerations that were part of the model fitting process.
