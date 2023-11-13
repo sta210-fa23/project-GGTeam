@@ -19,7 +19,7 @@ library(tidyverse)
 library(tidymodels)
 install.packages("car")
 library(car)
-
+library(knitr)
 ```
 
 Below is a brief description of the sections to focus on in the draft:
