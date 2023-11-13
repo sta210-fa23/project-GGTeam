@@ -122,6 +122,7 @@ ggplot(data = tiktok_aug, aes(x = likes, y = .resid)) +
 
 ggplot(data = tiktok_aug, aes(x = shares, y = .resid)) +
     geom_point() +
+  coord_cartesian(xlim = c(0, 40000)) +
     geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
     labs(x = "Fitted values",
          y = "Residuals",
@@ -129,6 +130,7 @@ ggplot(data = tiktok_aug, aes(x = shares, y = .resid)) +
 
 ggplot(data = tiktok_aug, aes(x = comments, y = .resid)) +
     geom_point() +
+    coord_cartesian(xlim = c(0, 50000)) +
     geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
     labs(x = "Fitted values",
          y = "Residuals",
@@ -143,6 +145,7 @@ ggplot(data = tiktok_aug, aes(x = plays, y = .resid)) +
 
 ggplot(data = tiktok_aug, aes(x = total_videos, y = .resid)) +
     geom_point() +
+  coord_cartesian(xlim = c(0, 5000)) +
     geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
     labs(x = "Fitted values",
          y = "Residuals",
