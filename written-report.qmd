@@ -76,7 +76,7 @@ m1 |>
 ```{r}
 m2 <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ . - video_length - video_length_bin - user_name, data = tiktok_users)
+  fit(log(followers) ~ . - video_length - video_length_bin - user_name, data = tiktok_users)
   
 m2 |>
   tidy() |>
