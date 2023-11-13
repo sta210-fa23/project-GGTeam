@@ -141,13 +141,6 @@ ggplot(data = tiktok_aug, aes(x = plays, y = .resid)) +
          y = "Residuals",
          title = "Residuals vs. fitted")
 
-ggplot(data = tiktok_aug, aes(x = video_length, y = .resid)) +
-    geom_point() +
-    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-    labs(x = "Fitted values",
-         y = "Residuals",
-         title = "Residuals vs. fitted")
-
 ggplot(data = tiktok_aug, aes(x = total_videos, y = .resid)) +
     geom_point() +
     geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
