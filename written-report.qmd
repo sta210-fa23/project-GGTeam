@@ -22,6 +22,10 @@ library(tidymodels)
 
 Below is a brief description of the sections to focus on in the draft:
 
+```{r}
+tiktok <- read.csv("data/top_users_vids.csv")
+```
+
 #### Introduction and data
 
 This section includes an introduction to the project motivation, data, and research question. Describe the data and definitions of key variables. It should also include some exploratory data analysis. All of the EDA won't fit in the body of the report, so focus on the EDA for the response variable and a few other interesting variables and relationships.
