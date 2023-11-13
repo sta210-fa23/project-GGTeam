@@ -17,6 +17,8 @@ editor: visual
 library(dplyr)
 library(tidyverse)
 library(tidymodels)
+install.packages("car")
+library(car)
 
 ```
 
