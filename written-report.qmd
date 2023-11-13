@@ -106,7 +106,7 @@ ggplot(data = tiktok_aug, aes(x = .fitted, y = .resid)) +
          title = "Residuals vs. fitted")
 
 resid_hist <- ggplot(data = tiktok_aug, aes(x = .resid)) +
-    geom_histogram() +
+    geom_histogram(binwidth = 1000000) +
     labs(x = "Residuals",
          title = "Distribution of residuals")
   resid_hist
