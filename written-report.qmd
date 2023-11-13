@@ -61,6 +61,38 @@ tiktok_users_fit <- linear_reg() |>
 vif(tiktok_users_fit$fit)
 ```
 
+```{r}
+m1 <- linear_reg() |>
+  set_engine("lm") |>
+  fit(followers ~ . - likes - user_name, data = tiktok_users)
+  
+m1 |>
+  tidy() |>
+  kable(digits = 3)
+```
+
+```{r}
+m2 <- linear_reg() |>
+  set_engine("lm") |>
+  fit(followers ~ . - video_length_bin - user_name, data = tiktok_users)
+  
+m2 |>
+  tidy() |>
+  kable(digits = 3)
+```
+
+```{r}
+glance(m1)|>
+  select(adj.r.squared, AIC, BIC)
+```
+
+```{r}
+glance(m2)|>
+  select(adj.r.squared, AIC, BIC)
+```
+
+Based on AIC and BIC, model 2 (the model without video length bin) is a better fit. Therefore, we choose to remove video_length_bin from the model and leave likes in the model to deal with the multicollinearity.
+
 #### Methodology
 
 This section includes a brief description of your modeling process. Explain the reasoning for the type of model you're fitting, predictor variables considered for the model including any interactions. Additionally, show how you arrived at the final model by describing the model selection process, any variable transformations (if needed), and any other relevant considerations that were part of the model fitting process.
