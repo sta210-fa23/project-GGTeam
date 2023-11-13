@@ -54,6 +54,8 @@ tiktok_users |>
   scale_x_continuous(labels = label_number())
 ```
 
+#### Detecting Multicollinearity & Model Comparison
+
 ```{r}
 tiktok_users_fit <- linear_reg() |>
   set_engine("lm")|>
