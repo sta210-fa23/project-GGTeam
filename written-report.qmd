@@ -224,7 +224,31 @@ ggplot(data = tiktok_aug, aes(x = total_videos, y = .resid)) +
 ```{r}
 model_with_interaction <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ likes + shares + comments + total_videos + video_length_bin)
+  fit(followers ~ likes + shares + comments + total_videos + video_length_bin + likes * video_length_bin + shares * video_length_bin + total_videos * video_length_bin, data = transformed_tiktok_users)
+
+model_with_interaction |>
+  tidy() |>
+  kable(digits = 3)
+```
+
+```{r}
+model_with_interaction2 <- linear_reg() |>
+  set_engine("lm") |>
+  fit(followers ~ likes + shares + comments + total_videos + video_length_bin + shares * as.factor(video_length_bin == 2) + total_videos * as.factor(video_length_bin == 2) + total_videos * as.factor(video_length_bin == 3), data = transformed_tiktok_users)
+
+model_with_interaction2 |>
+  tidy() |>
+  kable(digits = 3)
+```
+
+```{r}
+glance(m2)|>
+  select(adj.r.squared, AIC, BIC)
+```
+
+```{r}
+glance(model_with_interaction2)|>
+  select(adj.r.squared, AIC, BIC)
 ```
 
 #### Results
