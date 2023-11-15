@@ -30,7 +30,17 @@ tiktok <- read.csv("data/top_users_vids.csv")
 
 #### Introduction and data
 
-This section includes an introduction to the project motivation, data, and research question. Describe the data and definitions of key variables. It should also include some exploratory data analysis. All of the EDA won't fit in the body of the report, so focus on the EDA for the response variable and a few other interesting variables and relationships.
+TikTok now has over 1 billion users globally, making it one of the fastest growing social platforms in the world. As it has risen to prominence, so has its ubiquitous algorithm, which is said to generally account for account factors (likes and comments) and video information (captions, sounds, hashtags). Given, that TikTok has been heavily criticized alongside other platforms for declining youth mental health outcomes and rising hate due to the addictive nature of its explore page, we decided to look at TikTok\'s data and how follower count (a huge driver of engagement) is impacted by other aspects of a user\'s account, like average number of videos, average number of likes, and average number of comments. 
+
+The dataset comes from the \'top_users_vids.csv\' file (under folder \'Trending Videos Data Collection\') of the Github repository found at: https://github.com/ivantran96/TikTok_famous/tree/main. The data was originally collected as part of the DataResolutions\'s Data Blog project exploring Tiktok\'s demographics and trending video analytics. 
+
+The original data curators collected the data using David Teather\'s open-source Unofficial Tiktok API (found at https://github.com/davidteather/TikTok-Api), which uses Python to scrape Tiktok data and fetch the most trending videos, specific user information, and much more. Using the list of top Tiktokers, the curators compiled a list of users with the getSuggestedUsersbyIDCrawler api method, which used the top TikTokers and collected the suggested users. Using the byUsername method, they collected video data of the 25 most recent posts of each user from the top TikTokers and the suggested list. The curators also used the API\'s bySound method to collect videos using some of the most famous songs on TikTok to get an idea of how the choice of music can impact the potential of a video to become a trending video.
+
+The original dataset tiktok has 13 columns and 12,559 observations. The columns cover important metrics for trending videos such as video length, hashtags used, songs/sounds used, and number of likes, shares, comments, plays, and followers (and their total number of likes and videos). There are also less relevant variables such as creator username, create time, video ID which we will not use in our analysis. Variables id, create_time, video_length, n_likes, n_shares, n_comments, n_plays, n_followers, n_total_likes, and n_total_vids are numerical while the others are categorical.
+
+For EDA, we grouped the data by users and summarized all relevant predictor variables by taking their mean. Our modified dataset now has 8 columns and 254 observations. Username refers to the username of the person the other metrics refer to, which is drawn from the list of top TikTokers. Likes is the average number of likes across the most recent 25 posts of 
+
+We decided to group this data by user to limit multicollinearity between variables when looking at a specific video, because views would be very directly correlated with likes and comments; whereas, when looking at a user as a whole and averaging variables across videos, that chance of multicollinearity decreases. 
 
 ```{r}
 tiktok_users <- tiktok|>
@@ -42,7 +52,8 @@ tiktok_users <- tiktok|>
             followers = mean(n_followers),
             video_length = mean(video_length),
             total_videos = mean(n_total_vids)) |>
-  mutate(video_length_bin = ntile(video_length, n=3))
+  mutate(video_length_bin = ntile(video_length, n=3)) |>
+  mutate(video_length_bin = as.factor(video_length_bin))
 ```
 
 ```{r}
@@ -53,7 +64,7 @@ tiktok_users |>
   scale_x_continuous(labels = label_number())
 ```
 
-Since our data is heavily skewed, we continue our analysis by examining potential
+Since our data is heavily skewed, we continue our analysis by examining potential.
 
 ```{r}
 predictor_vars <- c("likes", "shares", "comments", "plays", "video_length", "total_videos")
@@ -104,6 +115,10 @@ transformed_tiktok_users <- tiktok |>
   mutate_at(vars(followers, shares, comments, plays, likes, total_videos),
             scale)
 ```
+
+#### Methodology
+
+This section includes a brief description of your modeling process. Explain the reasoning for the type of model you're fitting, predictor variables considered for the model including any interactions. Additionally, show how you arrived at the final model by describing the model selection process, any variable transformations (if needed), and any other relevant considerations that were part of the model fitting process.
 
 #### Detecting Multicollinearity & Model Comparison
 
@@ -203,6 +218,22 @@ ggplot(data = tiktok_aug, aes(x = total_videos, y = .resid)) +
          title = "Residuals vs. fitted")
 ```
 
+### Determining whether interaction terms are needed
+
+```{r}
+model_with_interaction <- linear_reg() |>
+  set_engine("lm") |>
+  fit(followers ~ likes + shares + comments + total_videos + video_length_bin)
+```
+
+#### Results
+
+In this section, you will output the final model and include a brief discussion of the model assumptions, diagnostics, and any relevant model fit statistics.
+
+This section also includes initial interpretations and conclusions drawn from the model.
+
+### Cross-Validation
+
 ```{r}
 set.seed(29)
 
@@ -212,7 +243,7 @@ tiktok_test  <- testing(tiktok_split)
 ```
 
 ```{r}
-tiktok_rec <- recipe(followers ~ likes + shares + comments + plays + total_videos, 
+tiktok_rec <- recipe(followers ~ likes + shares + comments + total_videos + video_length_bin, 
                     data = tiktok_train) |>
   step_naomit(all_predictors())|>
   step_log(all_predictors()) |>
@@ -239,16 +270,6 @@ collect_metrics(tiktok_cv1, summarize = TRUE)
 ```{r}
 
 ```
-
-#### Methodology
-
-This section includes a brief description of your modeling process. Explain the reasoning for the type of model you're fitting, predictor variables considered for the model including any interactions. Additionally, show how you arrived at the final model by describing the model selection process, any variable transformations (if needed), and any other relevant considerations that were part of the model fitting process.
-
-#### Results
-
-In this section, you will output the final model and include a brief discussion of the model assumptions, diagnostics, and any relevant model fit statistics.
-
-This section also includes initial interpretations and conclusions drawn from the model.
 
 Your written report goes here!
 
