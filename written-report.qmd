@@ -17,7 +17,7 @@ editor: visual
 library(dplyr)
 library(tidyverse)
 library(tidymodels)
-install.packages("car")
+library(patchwork)
 library(car)
 library(knitr)
 ```
@@ -42,22 +42,67 @@ tiktok_users <- tiktok|>
             followers = mean(n_followers),
             video_length = mean(video_length),
             total_videos = mean(n_total_vids)) |>
-  mutate(video_length_bin = ntile(video_length, n=3)) |>
-  mutate(followers = followers - mean(followers),
-         shares = shares - mean(shares),
-         comments = comments - mean(comments),
-         plays = plays - mean(plays),
-         likes = likes - mean(likes),
-         total_videos = total_videos - mean(total_videos))
+  mutate(video_length_bin = ntile(video_length, n=3))
 ```
 
 ```{r}
-
 tiktok_users |>
   ggplot(aes(x = followers)) + 
   geom_histogram() + 
   labs(x = "Followers", y = "Count", title = "Distribution of Number of Followers") + 
   scale_x_continuous(labels = label_number())
+```
+
+Since our data is heavily skewed, we continue our analysis by examining potential
+
+```{r}
+predictor_vars <- c("likes", "shares", "comments", "plays", "video_length", "total_videos")
+
+create_individual_residual_plot <- function(predictor, data) {
+  model <- linear_reg() |>
+    set_engine("lm") |>
+    fit(reformulate(predictor, response = "followers"), data = data)
+  
+  augmented_data <- augment(model$fit)
+  
+  ggplot(augmented_data, aes_string(x = ".fitted", y = ".resid")) +
+    geom_point() +
+    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+    labs(x = "Fitted Values", y = "Residuals", title = paste("Residuals vs Fitted for", predictor)) +
+    theme_minimal()
+}
+
+individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plot(.x, tiktok_users))
+# from individual plots scaled to size, it's clear that constant variance is not met
+# patchwork for visualization 
+combined_plots <- reduce(individual_residual_plots, `+`)
+final_plot <- combined_plots + plot_layout(ncol = 3, nrow = 2)
+final_plot
+```
+
+```{r}
+transformed_tiktok_users <- tiktok |>
+  dplyr::group_by(user_name) |>
+  dplyr::summarize(
+    likes = mean(n_likes),
+    shares = mean(n_shares),
+    comments = mean(n_comments),
+    plays = mean(n_plays),
+    followers = mean(n_followers),
+    video_length = mean(video_length),
+    total_videos = mean(n_total_vids)
+  ) |>
+  mutate(video_length_bin = ntile(video_length, n = 3)) |>
+  mutate(
+    followers = log(followers + 1),
+    shares = log(shares + 1),
+    comments = log(comments + 1),
+    plays = log(plays + 1),
+    likes = log(likes + 1),
+    total_videos = log(total_videos + 1)
+  ) |>
+  mutate_at(vars(followers, shares, comments, plays, likes, total_videos),
+            scale)
 ```
 
 #### Detecting Multicollinearity & Model Comparison
@@ -128,7 +173,7 @@ ggplot(data = tiktok_aug, aes(x = likes, y = .resid)) +
 
 ggplot(data = tiktok_aug, aes(x = shares, y = .resid)) +
     geom_point() +
-  coord_cartesian(xlim = c(0, 40000)) +
+  coord_cartesian(xlim = c(0, 50)) +
     geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
     labs(x = "Fitted values",
          y = "Residuals",
@@ -136,7 +181,7 @@ ggplot(data = tiktok_aug, aes(x = shares, y = .resid)) +
 
 ggplot(data = tiktok_aug, aes(x = comments, y = .resid)) +
     geom_point() +
-    coord_cartesian(xlim = c(0, 50000)) +
+    coord_cartesian(xlim = c(0, 50)) +
     geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
     labs(x = "Fitted values",
          y = "Residuals",
@@ -151,7 +196,7 @@ ggplot(data = tiktok_aug, aes(x = plays, y = .resid)) +
 
 ggplot(data = tiktok_aug, aes(x = total_videos, y = .resid)) +
     geom_point() +
-  coord_cartesian(xlim = c(0, 5000)) +
+  coord_cartesian(xlim = c(0, 50)) +
     geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
     labs(x = "Fitted values",
          y = "Residuals",
