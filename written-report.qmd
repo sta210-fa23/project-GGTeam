@@ -117,7 +117,7 @@ vif(tiktok_users_fit$fit)
 ```{r}
 m1 <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ . - likes - video_length- user_name, data = tiktok_users)
+  fit(followers ~ . - likes - video_length- user_name, data = transformed_tiktok_users)
   
 m1 |>
   tidy() |>
@@ -127,7 +127,7 @@ m1 |>
 ```{r}
 m2 <- linear_reg() |>
   set_engine("lm") |>
-  fit(log(followers) ~ . - video_length - video_length_bin - user_name, data = tiktok_users)
+  fit(log(followers) ~ . - video_length - video_length_bin - user_name, data = transformed_tiktok_users)
   
 m2 |>
   tidy() |>
