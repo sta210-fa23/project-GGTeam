@@ -127,7 +127,7 @@ m1 |>
 ```{r}
 m2 <- linear_reg() |>
   set_engine("lm") |>
-  fit(log(followers) ~ . - video_length - video_length_bin - user_name, data = transformed_tiktok_users)
+  fit(log(followers) ~ . - plays - video_length - user_name, data = transformed_tiktok_users)
   
 m2 |>
   tidy() |>
@@ -144,7 +144,7 @@ glance(m2)|>
   select(adj.r.squared, AIC, BIC)
 ```
 
-Based on AIC and BIC, model 2 (the model without video length bin) is a better fit. Therefore, we choose to remove video_length_bin from the model and leave likes in the model to deal with the multicollinearity.
+Based on AIC and BIC, model 2 (the model without plays) is a better fit. Therefore, we choose to remove plays from the model and leave likes in the model to deal with the multicollinearity.
 
 ```{r}
 tiktok_aug <- augment(m2$fit)
@@ -214,6 +214,7 @@ tiktok_test  <- testing(tiktok_split)
 ```{r}
 tiktok_rec <- recipe(followers ~ likes + shares + comments + plays + total_videos, 
                     data = tiktok_train) |>
+  step_naomit(all_predictors())|>
   step_log(all_predictors()) |>
   step_log(followers) 
 
