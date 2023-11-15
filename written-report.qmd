@@ -104,6 +104,7 @@ transformed_tiktok_users <- tiktok |>
     total_videos = mean(n_total_vids)
   ) |>
   mutate(video_length_bin = ntile(video_length, n = 3)) |>
+  mutate(video_length_bin = as.factor(video_length_bin)) |>
   mutate(
     followers = log(followers + 1),
     shares = log(shares + 1),
