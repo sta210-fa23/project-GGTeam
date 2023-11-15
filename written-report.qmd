@@ -110,7 +110,7 @@ transformed_tiktok_users <- tiktok |>
 ```{r}
 tiktok_users_fit <- linear_reg() |>
   set_engine("lm")|>
-  fit(followers ~ likes + shares + comments + plays + video_length_bin + total_videos, data=tiktok_users)
+  fit(followers ~ likes + shares + comments + plays + video_length_bin + total_videos, data=transformed_tiktok_users)
 vif(tiktok_users_fit$fit)
 ```
 
