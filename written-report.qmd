@@ -20,6 +20,8 @@ library(tidymodels)
 library(patchwork)
 library(car)
 library(knitr)
+library(yardstick)
+library(broom)
 ```
 
 Below is a brief description of the sections to focus on in the draft:
@@ -43,7 +45,7 @@ For EDA, we grouped the data by users and summarized all relevant predictor vari
 We decided to group this data by user to limit multicollinearity between variables when looking at a specific video, because views would be very directly correlated with likes and comments; whereas, when looking at a user as a whole and averaging variables across videos, that chance of multicollinearity decreases. 
 
 ```{r}
-tiktok_users <- tiktok|>
+tiktok_users <- tiktok |>
   dplyr::group_by(user_name)|>
   dplyr::summarize(likes = mean(n_likes),
             shares = mean(n_shares),
@@ -113,33 +115,40 @@ transformed_tiktok_users <- tiktok |>
     likes = log(likes + 1),
     total_videos = log(total_videos + 1)
   ) |>
-  mutate_at(vars(followers, shares, comments, plays, likes, total_videos),
-            scale)
+  select(-user_name)
+```
+
+```{r}
+set.seed(29)
+
+tiktok_split <- initial_split(transformed_tiktok_users, prop = 0.7)
+tiktok_train <- training(tiktok_split)
+tiktok_test  <- testing(tiktok_split)
 ```
 
 #### Methodology
 
 This section includes a brief description of your modeling process. Explain the reasoning for the type of model you're fitting, predictor variables considered for the model including any interactions. Additionally, show how you arrived at the final model by describing the model selection process, any variable transformations (if needed), and any other relevant considerations that were part of the model fitting process.
 
-Before constructing our model, we chose to log transformed all our variables in the dataset \'transformed_tiktok_users\' because, prior to the transformation, the variables were not to scale and returned coefficients of 0.000. 
+Before constructing our model, we chose to log transformed all our variables in the dataset 'transformed_tiktok_users' because, prior to the transformation, the variables were not to scale and returned coefficients of 0.000. 
 
-Afterwards, we constructed two linear regression model fitting variable \'followers\' with predictor variables \'likes\', \'shares\', \'comments\', \'plays\', \'video_length_bin\', and \'total_videos.\' Our first model m1 had all the previously indicated predictor variables excluding variable \'likes\' while our second model m2 had those predictor variables excluding variable \'plays.\' We compared these two models because likes and plays had the highest vif values in our VIF test (14.431 and 12.253 respectively), meaning they have the highest likelihood for multicollinearity. We chose the model without plays, m2, because it had a lower AIC and BIC value, indicating that it was a better fit. Therefore, we choose to remove plays from the model and leave likes in the model to deal with the multicollinearity. 
+Afterwards, we constructed two linear regression model fitting variable 'followers' with predictor variables 'likes', 'shares', 'comments', 'plays', 'video_length_bin', and 'total_videos.' Our first model m1 had all the previously indicated predictor variables excluding variable 'likes' while our second model m2 had those predictor variables excluding variable 'plays.' We compared these two models because likes and plays had the highest vif values in our VIF test (14.431 and 12.253 respectively), meaning they have the highest likelihood for multicollinearity. We chose the model without plays, m2, because it had a lower AIC and BIC value, indicating that it was a better fit. Therefore, we choose to remove plays from the model and leave likes in the model to deal with the multicollinearity. 
 
-In our recipe, we fit the dataset \'tiktok_user,\' after which we added steps omitting all NA values from our predictors and log-transforming all our predictor variables and followers. We then conducted a cross-validation test on tiktok_train.
+In our recipe, we fit the dataset 'tiktok_user,' after which we added steps omitting all NA values from our predictors and log-transforming all our predictor variables and followers. We then conducted a cross-validation test on tiktok_train.
 
 #### Detecting Multicollinearity & Model Comparison
 
 ```{r}
 tiktok_users_fit <- linear_reg() |>
   set_engine("lm")|>
-  fit(followers ~ likes + shares + comments + plays + video_length_bin + total_videos, data=transformed_tiktok_users)
+  fit(followers ~ likes + shares + comments + plays + video_length_bin + total_videos, data=tiktok_train)
 vif(tiktok_users_fit$fit)
 ```
 
 ```{r}
 m1 <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ . - likes - video_length- user_name, data = transformed_tiktok_users)
+  fit(followers ~ . - likes - video_length, data = tiktok_train)
   
 m1 |>
   tidy() |>
@@ -149,7 +158,7 @@ m1 |>
 ```{r}
 m2 <- linear_reg() |>
   set_engine("lm") |>
-  fit(log(followers) ~ . - plays - video_length - user_name, data = transformed_tiktok_users)
+  fit(log(followers) ~ . - plays - video_length, data = tiktok_train)
   
 m2 |>
   tidy() |>
@@ -230,7 +239,7 @@ ggplot(data = tiktok_aug, aes(x = total_videos, y = .resid)) +
 ```{r}
 model_with_interaction <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ likes + shares + comments + total_videos + video_length_bin + likes * video_length_bin + shares * video_length_bin + total_videos * video_length_bin, data = transformed_tiktok_users)
+  fit(followers ~ likes + shares + comments + total_videos + video_length_bin + likes * video_length_bin + shares * video_length_bin + total_videos * video_length_bin, data = tiktok_train)
 
 model_with_interaction |>
   tidy() |>
@@ -240,7 +249,7 @@ model_with_interaction |>
 ```{r}
 model_with_interaction2 <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ likes + shares + comments + total_videos + video_length_bin + shares * as.factor(video_length_bin == 2) + total_videos * as.factor(video_length_bin == 2) + total_videos * as.factor(video_length_bin == 3), data = transformed_tiktok_users)
+  fit(followers ~ likes + shares + comments + total_videos + video_length_bin + shares * as.factor(video_length_bin == 2) + total_videos * as.factor(video_length_bin == 2) + total_videos * as.factor(video_length_bin == 3), data = tiktok_train)
 
 model_with_interaction2 |>
   tidy() |>
@@ -263,43 +272,29 @@ In this section, you will output the final model and include a brief discussion 
 
 This section also includes initial interpretations and conclusions drawn from the model.
 
-### Cross-Validation
-
 ```{r}
-set.seed(29)
+predict_test <- predict(m2, new_data = tiktok_test) |>
+  bind_cols(tiktok_test) 
+  
+#print(colnames(predict_test))
+#str(predict_test)
+predict_test <- predict_test |>
+  mutate(
+    .pred = as.numeric(.pred),
+    followers = as.numeric(followers)
+  )
 
-tiktok_split <- initial_split(tiktok_users, prop = 0.7)
-tiktok_train <- training(tiktok_split)
-tiktok_test  <- testing(tiktok_split)
+rmse_result <- rmse(predict_test, truth = followers, estimate = .pred)
+rsquared <- rsq(predict_test, truth = followers, estimate = .pred)
+rmse_result
+rsquared
 ```
 
-```{r}
-tiktok_rec <- recipe(followers ~ likes + shares + comments + total_videos + video_length_bin, 
-                    data = tiktok_train) |>
-  step_naomit(all_predictors())|>
-  step_log(all_predictors()) |>
-  step_log(followers) 
-
-tiktok_spec <- linear_reg() |>
-  set_engine("lm")
-
-tiktok_wflow1 <- workflow() |>
-  add_model(tiktok_spec) |>
-  add_recipe(tiktok_rec)
-```
+RMSE of 1.399284 indicates the average prediction error in terms of the log.
 
 ```{r}
-
-folds <- vfold_cv(tiktok_train, v = 10)
-
-tiktok_cv1 <- tiktok_wflow1 |>
-  fit_resamples(resamples = folds) 
-
-collect_metrics(tiktok_cv1, summarize = TRUE)
-```
-
-```{r}
-
+original_scale_rmse <- exp(rmse_result$.estimate)
+original_scale_rmse
 ```
 
 Your written report goes here!
