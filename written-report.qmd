@@ -197,24 +197,6 @@ combined_residual_plot
 
 Although there's still slight signs of fanning going on, it's a lot less severe than before. For now, this concludes our EDA/data cleaning process and we move onto our model selection process.
 
-```{r}
-tiktok_aug <- augment(m2$fit)
-
-ggplot(data = tiktok_aug, aes(x = .fitted, y = .resid)) +
-    geom_point() +
-    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-    labs(x = "Fitted values",
-         y = "Residuals",
-         title = "Residuals vs. fitted")
-
-resid_hist <- ggplot(data = tiktok_aug, aes(x = .resid)) +
-    geom_histogram() +
-    labs(x = "Residuals",
-         title = "Distribution of residuals")
-  resid_hist
-  
-```
-
 Methodology
 
 This section includes a brief description of your modeling process. Explain the reasoning for the type of model you're fitting, predictor variables considered for the model including any interactions. Additionally, show how you arrived at the final model by describing the model selection process, any variable transformations (if needed), and any other relevant considerations that were part of the model fitting process.
@@ -330,6 +312,21 @@ glance(m2)|>
 Based on AIC and BIC, model 2 (the model without plays) is a better fit. Therefore, we choose to remove plays from the model and leave likes in the model to deal with the multicollinearity.
 
 ```{r}
+tiktok_aug <- augment(m2$fit)
+
+ggplot(data = tiktok_aug, aes(x = .fitted, y = .resid)) +
+    geom_point() +
+    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+    labs(x = "Fitted values",
+         y = "Residuals",
+         title = "Residuals vs. fitted")
+
+resid_hist <- ggplot(data = tiktok_aug, aes(x = .resid)) +
+    geom_histogram() +
+    labs(x = "Residuals",
+         title = "Distribution of residuals")
+  resid_hist
+  
 ggplot(data = tiktok_aug, aes(x = likes, y = .resid)) +
     geom_point() +
     geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
@@ -374,7 +371,7 @@ ggplot(data = tiktok_aug, aes(x = total_videos, y = .resid)) +
 ```{r}
 model_with_interaction <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ likes + shares + comments + total_videos + video_length_bin + likes * video_length_bin + shares * video_length_bin + total_videos * video_length_bin, data = tiktok_train)
+  fit(followers ~ likes + shares + comments + total_videos + video_length_bin2 + video_length_bin3 + video_length_bin2*(likes + shares + total_videos) + video_length_bin3*(likes + shares + total_videos), data = train_transformed)
 
 model_with_interaction |>
   tidy() |>
@@ -384,7 +381,7 @@ model_with_interaction |>
 ```{r}
 model_with_interaction2 <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ likes + shares + comments + total_videos + video_length_bin + shares * as.factor(video_length_bin == 2) + total_videos * as.factor(video_length_bin == 2) + total_videos * as.factor(video_length_bin == 3), data = tiktok_train)
+  fit(followers ~ likes + shares + comments + total_videos + video_length_bin2 + shares * video_length_bin2 + total_videos * video_length_bin2 + total_videos, data = train_transformed)
 
 model_with_interaction2 |>
   tidy() |>
@@ -408,6 +405,8 @@ In this section, you will output the final model and include a brief discussion 
 This section also includes initial interpretations and conclusions drawn from the model.
 
 ```{r}
+#| eval: FALSE
+# REDO
 predict_test <- predict(m2, new_data = tiktok_test) |>
   bind_cols(tiktok_test) 
   
@@ -428,12 +427,13 @@ rsquared
 RMSE of 1.399284 indicates the average prediction error in terms of the log.
 
 ```{r}
+#| eval: FALSE
 original_scale_rmse <- exp(rmse_result$.estimate)
 original_scale_rmse
 ```
 
 ```{r}
-
+#| eval: FALSE
 model_with_interaction2 |>
   tidy() |>
   kable(digits = 3)
