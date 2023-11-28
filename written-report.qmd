@@ -25,8 +25,6 @@ library(broom)
 library(recipes)
 ```
 
-Below is a brief description of the sections to focus on in the draft:
-
 ```{r}
 tiktok <- read.csv("data/top_users_vids.csv")
 ```
@@ -39,11 +37,27 @@ The dataset comes from the 'top_users_vids.csv' file (under folder 'Trending Vid
 
 The original data curators collected the data using David Teather's open-source Unofficial Tiktok API (found at https://github.com/davidteather/TikTok-Api), which uses Python to scrape Tiktok data and fetch the most trending videos, specific user information, and much more. Using the list of top Tiktokers, the curators compiled a list of users with the getSuggestedUsersbyIDCrawler api method, which used the top TikTokers and collected the suggested users. Using the byUsername method, they collected video data of the 25 most recent posts of each user from the top TikTokers and the suggested list. The curators also used the API's bySound method to collect videos using some of the most famous songs on TikTok to get an idea of how the choice of music can impact the potential of a video to become a trending video.
 
-The original dataset tiktok has 13 columns and 12,559 observations. The columns cover important metrics for trending videos such as video length, hashtags used, songs/sounds used, and number of likes, shares, comments, plays, and followers (and their total number of likes and videos). There are also less relevant variables such as creator username, create time, video ID which we will not use in our analysis. Variables id, create_time, video_length, n_likes, n_shares, n_comments, n_plays, n_followers, n_total_likes, and n_total_vids are numerical while the others are categorical.
+#### **EDA**
 
-For EDA, we grouped the data by users and summarized all relevant predictor variables by taking their mean. Our modified dataset now has 8 columns and 254 observations. Username refers to the username of the person the other metrics refer to, which is drawn from the list of top TikTokers. Likes is the average number of likes across the most recent 25 posts of 
+We begin our EDA process by first examining the dataset.
 
-We decided to group this data by user to limit multicollinearity between variables when looking at a specific video, because views would be very directly correlated with likes and comments; whereas, when looking at a user as a whole and averaging variables across videos, that chance of multicollinearity decreases. 
+```{r}
+head(tiktok, 10)
+```
+
+We have the following columns:
+
+```{r}
+names(tiktok)
+```
+
+Currently, our dataset tiktok has 13 columns and 12,559 observations. The columns cover attributes of a tiktok video such as video length, hashtags used, songs/sounds used, and number of likes, shares, comments, plays, and followers (and their total number of likes and videos). Variables id, create_time, video_length, n_likes, n_shares, n_comments, n_plays, n_followers, n_total_likes, and n_total_vids are numerical while the others are categorical.
+
+However, from just our initial exploration, it's clear that some of the columns won't be useful for our analysis. It is also apparent that we should find a way to address the potential issue user_name might have with the other columns. There's a potential for severe multicollinearity if we choose to just drop user_name, since the number of plays or likes a video would have a strong relationship with the user that post it. Therefore, any analysis without user and its related features would have to consider the user's account as confounding variables. In addition, we'll be forced to drop valuable features directly related to a user such as user followers, user total likes and user total videos (n_followers, n_total_likes, n_total_vids).
+
+We see that the less relevant variables are create time and video ID. In addition, from looking at our data, hash tags and songs might not be useful. Most videos don't include a hashtag and there are too many unique instances of them for it to be valuable in our analysis. We could consider binning hashtag into none and at least 1 hashtag(s), however that wouldn't be useful for our analysis since its rare for tiktok followers to actually look at the hashtags. The same is true for songs; one could consider grouping original songs into one bin and the rest into others. However, from our domain knowledge, its wouldn't be useful to categorize all original songs as similar since most of them could just be user-edited snippets of actual songs.
+
+To address the issues mentioned above, we grouped the data by users and summarized all relevant predictor variables by taking their mean. Our modified dataset now has 8 columns and 254 observations.
 
 ```{r}
 tiktok_users <- tiktok |>
@@ -55,14 +69,20 @@ tiktok_users <- tiktok |>
             followers = mean(n_followers),
             video_length = mean(video_length),
             total_videos = mean(n_total_vids))
+
+head(tiktok_users, 10)
 ```
+
+Note that no data leakage is introduced in this process since we are just summarizing by the means of the predictor variable per user. When we split, it'll split based on observations, users. We'll now split our data into testing and training.
 
 ```{r}
 set.seed(29)
 
-tiktok_split <- initial_split(tiktok_users, prop = 0.7)
+tiktok_split <- initial_split(tiktok_users, prop = 0.75)
 tiktok_train <- training(tiktok_split)
 tiktok_test  <- testing(tiktok_split)
+
+tiktok_split
 ```
 
 Here's a distribution of our response variable, user followers, from our training set.
@@ -73,6 +93,25 @@ tiktok_train |>
   geom_histogram() + 
   labs(x = "Followers", y = "Count", title = "Distribution of Number of Followers") + 
   scale_x_continuous(labels = label_number())
+```
+
+Here are the distributions for the predictor variables we are interested in:
+
+```{r}
+predictor_vars <- c("likes", "shares", "comments", "plays", "total_videos", "video_length")
+
+long_train <- tiktok_train |>
+  select(all_of(predictor_vars)) |>
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value")
+
+ggplot(long_train, aes(x = value)) +
+  geom_histogram(bins = 30, fill = "blue", color = "black") +
+  facet_wrap(~variable, scales = "free_x") +
+  theme_minimal() +
+  labs(x = "Value", y = "Count", title = "Distribution of Predictor Variables") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_continuous(labels = scales::comma)
+
 ```
 
 We would like to know if any of our predictor variables violate any conditions. Hence, we have the following residual plots for each of them.
@@ -125,11 +164,6 @@ transformed_tiktok_users <- tiktok |>
   ) |>
   mutate(
     followers = log(followers + 1),
-    shares = log(shares + 1),
-    comments = log(comments + 1),
-    plays = log(plays + 1),
-    likes = log(likes + 1),
-    total_videos = log(total_videos + 1)
   ) |>
   select(-user_name)
 
@@ -144,7 +178,8 @@ tiktok_test  <- testing(tiktok_split)
 tiktok_recipe <- recipe(followers ~ ., data = tiktok_train) |>
   step_discretize(video_length, options = list(cuts = 3)) |>
   step_dummy(all_nominal_predictors()) |>
-  step_center(all_numeric_predictors())
+  step_center(all_numeric_predictors()) |>
+  step_normalize(all_numeric_predictors(), -all_outcomes())
 
 prepped_tiktok_recipe <- prep(tiktok_recipe, training = tiktok_train)
 train_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_train)
@@ -160,9 +195,27 @@ combined_residual_plot <- wrap_plots(individual_residual_plots, ncol = 2)
 combined_residual_plot
 ```
 
-Although there's still signs of fanning going on, it's a lot less severe than before. For now, this concludes our EDA/data cleaning process and we move onto our model selection process.
+Although there's still slight signs of fanning going on, it's a lot less severe than before. For now, this concludes our EDA/data cleaning process and we move onto our model selection process.
 
-#### Methodology
+```{r}
+tiktok_aug <- augment(m2$fit)
+
+ggplot(data = tiktok_aug, aes(x = .fitted, y = .resid)) +
+    geom_point() +
+    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+    labs(x = "Fitted values",
+         y = "Residuals",
+         title = "Residuals vs. fitted")
+
+resid_hist <- ggplot(data = tiktok_aug, aes(x = .resid)) +
+    geom_histogram() +
+    labs(x = "Residuals",
+         title = "Distribution of residuals")
+  resid_hist
+  
+```
+
+Methodology
 
 This section includes a brief description of your modeling process. Explain the reasoning for the type of model you're fitting, predictor variables considered for the model including any interactions. Additionally, show how you arrived at the final model by describing the model selection process, any variable transformations (if needed), and any other relevant considerations that were part of the model fitting process.
 
@@ -275,23 +328,6 @@ glance(m2)|>
 ```
 
 Based on AIC and BIC, model 2 (the model without plays) is a better fit. Therefore, we choose to remove plays from the model and leave likes in the model to deal with the multicollinearity.
-
-```{r}
-tiktok_aug <- augment(m2$fit)
-
-ggplot(data = tiktok_aug, aes(x = .fitted, y = .resid)) +
-    geom_point() +
-    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-    labs(x = "Fitted values",
-         y = "Residuals",
-         title = "Residuals vs. fitted")
-
-resid_hist <- ggplot(data = tiktok_aug, aes(x = .resid)) +
-    geom_histogram() +
-    labs(x = "Residuals",
-         title = "Distribution of residuals")
-  resid_hist
-```
 
 ```{r}
 ggplot(data = tiktok_aug, aes(x = likes, y = .resid)) +
