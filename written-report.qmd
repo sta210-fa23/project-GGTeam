@@ -141,7 +141,7 @@ tiktok_test  <- testing(tiktok_split)
 ```
 
 ```{r}
-tiktok_recipe <- recipe(~ ., data = tiktok_train) |>
+tiktok_recipe <- recipe(followers ~ ., data = tiktok_train) |>
   step_discretize(video_length, options = list(cuts = 3)) |>
   step_dummy(all_nominal_predictors()) |>
   step_center(all_numeric_predictors())
@@ -185,7 +185,7 @@ vif(tiktok_users_fit$fit)
 ```{r}
 m1 <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ . - likes - video_length, data = tiktok_train)
+  fit(followers ~ . - likes, data = train_transformed)
   
 m1 |>
   tidy() |>
@@ -195,11 +195,73 @@ m1 |>
 ```{r}
 m2 <- linear_reg() |>
   set_engine("lm") |>
-  fit(log(followers) ~ . - plays - video_length, data = tiktok_train)
+  fit(followers ~ . - plays, data = train_transformed)
   
 m2 |>
   tidy() |>
   kable(digits = 3)
+```
+
+**Model Comparison with 5-fold CV**
+
+```{r}
+set.seed(29)
+folds <- vfold_cv(tiktok_train, v = 5)
+
+calc_model_stats <- function(x) {
+  glance(extract_fit_parsnip(x)) |>
+    select(adj.r.squared, AIC, BIC)
+}
+
+tiktok_recipe1 <- recipe(followers ~ ., data = tiktok_train) |>
+  step_rm(likes) |>
+  step_discretize(video_length, options = list(cuts = 3)) |>
+  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
+  step_center(all_numeric_predictors(), -all_outcomes())
+
+tiktok_recipe2 <- recipe(followers ~ ., data = tiktok_train) |>
+  step_rm(plays) |>
+  step_discretize(video_length, options = list(cuts = 3)) |>
+  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
+  step_center(all_numeric_predictors(), -all_outcomes())
+
+tiktok_wflow1 <- workflow() |>
+  add_recipe(tiktok_recipe1) |>
+  add_model(linear_reg() |>
+            set_engine("lm"))
+
+tiktok_wflow2 <- workflow() |>
+  add_recipe(tiktok_recipe2) |>
+  add_model(linear_reg() |>
+            set_engine("lm"))
+
+tiktok_fit_rs1 <- tiktok_wflow1 |>
+  fit_resamples(
+    resamples = folds, 
+    control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
+  )
+
+tiktok_fit_rs2 <- tiktok_wflow2 |>
+  fit_resamples(
+    resamples = folds, 
+    control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
+  )
+```
+
+```{r}
+collect_metrics(tiktok_fit_rs1, summarize = TRUE)
+map_df(tiktok_fit_rs1$.extracts, ~ .x[[1]][[1]]) |>
+  summarise(mean_adj_rsq = mean(adj.r.squared), 
+            mean_aic = mean(AIC), 
+            mean_bic = mean(BIC))
+```
+
+```{r}
+collect_metrics(tiktok_fit_rs2, summarize = TRUE)
+map_df(tiktok_fit_rs2$.extracts, ~ .x[[1]][[1]]) |>
+  summarise(mean_adj_rsq = mean(adj.r.squared), 
+            mean_aic = mean(AIC), 
+            mean_bic = mean(BIC))
 ```
 
 ```{r}
