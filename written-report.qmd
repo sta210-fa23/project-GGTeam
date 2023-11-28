@@ -22,6 +22,7 @@ library(car)
 library(knitr)
 library(yardstick)
 library(broom)
+library(recipes)
 ```
 
 Below is a brief description of the sections to focus on in the draft:
@@ -53,24 +54,30 @@ tiktok_users <- tiktok |>
             plays = mean(n_plays),
             followers = mean(n_followers),
             video_length = mean(video_length),
-            total_videos = mean(n_total_vids)) |>
-  mutate(video_length_bin = ntile(video_length, n=3)) |>
-  mutate(video_length_bin = as.factor(video_length_bin))
+            total_videos = mean(n_total_vids))
 ```
 
 ```{r}
-tiktok_users |>
+set.seed(29)
+
+tiktok_split <- initial_split(tiktok_users, prop = 0.7)
+tiktok_train <- training(tiktok_split)
+tiktok_test  <- testing(tiktok_split)
+```
+
+Here's a distribution of our response variable, user followers, from our training set.
+
+```{r}
+tiktok_train |>
   ggplot(aes(x = followers)) + 
   geom_histogram() + 
   labs(x = "Followers", y = "Count", title = "Distribution of Number of Followers") + 
   scale_x_continuous(labels = label_number())
 ```
 
-Since our data is heavily skewed, we continue our analysis by examining potential.
+We would like to know if any of our predictor variables violate any conditions. Hence, we have the following residual plots for each of them.
 
 ```{r}
-predictor_vars <- c("likes", "shares", "comments", "plays", "video_length", "total_videos")
-
 create_individual_residual_plot <- function(predictor, data) {
   model <- linear_reg() |>
     set_engine("lm") |>
@@ -78,20 +85,31 @@ create_individual_residual_plot <- function(predictor, data) {
   
   augmented_data <- augment(model$fit)
   
-  ggplot(augmented_data, aes_string(x = ".fitted", y = ".resid")) +
-    geom_point() +
+  ggplot(augmented_data, aes(x = .fitted, y = .resid)) +
+    geom_point(alpha = 0.5) +
     geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-    labs(x = "Fitted Values", y = "Residuals", title = paste("Residuals vs Fitted for", predictor)) +
-    theme_minimal()
+    labs(x = "Fitted Values", y = "Residuals", title = paste("avg", predictor)) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 8),
+      plot.title = element_text(size = 14, face = "bold"),
+      axis.title = element_text(size = 12)
+    )
 }
 
 individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plot(.x, tiktok_users))
-# from individual plots scaled to size, it's clear that constant variance is not met
-# patchwork for visualization 
+
+# Patchwork for visualization 
 combined_plots <- reduce(individual_residual_plots, `+`)
 final_plot <- combined_plots + plot_layout(ncol = 3, nrow = 2)
 final_plot
 ```
+
+It's clear that all our predictors variables violates constant variance. There's a clear outward spread for likes, shares, comments, plays and video_length, while an inward spread for total_videos.
+
+For interpretability, it makes sense to process average bin video length into levels, corresponding to "short", "medium" and "long." This also allows us to search for interesting interactions effects video_length might have with other predictors such as likes. Therefore, we'll add step_discretize() into the recipe for video_length.
+
+In order to deal with constant variance for the other terms, we log transformed the rest of the predictor variables.
 
 ```{r}
 transformed_tiktok_users <- tiktok |>
@@ -105,8 +123,6 @@ transformed_tiktok_users <- tiktok |>
     video_length = mean(video_length),
     total_videos = mean(n_total_vids)
   ) |>
-  mutate(video_length_bin = ntile(video_length, n = 3)) |>
-  mutate(video_length_bin = as.factor(video_length_bin)) |>
   mutate(
     followers = log(followers + 1),
     shares = log(shares + 1),
@@ -116,15 +132,35 @@ transformed_tiktok_users <- tiktok |>
     total_videos = log(total_videos + 1)
   ) |>
   select(-user_name)
-```
 
-```{r}
 set.seed(29)
 
 tiktok_split <- initial_split(transformed_tiktok_users, prop = 0.7)
 tiktok_train <- training(tiktok_split)
 tiktok_test  <- testing(tiktok_split)
 ```
+
+```{r}
+tiktok_recipe <- recipe(~ ., data = tiktok_train) |>
+  step_discretize(video_length, options = list(cuts = 3)) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_center(all_numeric_predictors())
+
+prepped_tiktok_recipe <- prep(tiktok_recipe, training = tiktok_train)
+train_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_train)
+```
+
+```{r}
+predictor_vars <- c("likes", "shares", "comments", "plays", "total_videos")  
+
+individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plot(.x, train_transformed))
+
+combined_residual_plot <- wrap_plots(individual_residual_plots, ncol = 2)
+
+combined_residual_plot
+```
+
+Although there's still signs of fanning going on, it's a lot less severe than before. For now, this concludes our EDA/data cleaning process and we move onto our model selection process.
 
 #### Methodology
 
@@ -141,7 +177,8 @@ In our recipe, we fit the dataset 'tiktok_user,' after which we added steps omit
 ```{r}
 tiktok_users_fit <- linear_reg() |>
   set_engine("lm")|>
-  fit(followers ~ likes + shares + comments + plays + video_length_bin + total_videos, data=tiktok_train)
+  fit(followers ~ likes + shares + comments + plays + video_length_bin2 + video_length_bin3 + total_videos, data=train_transformed)
+
 vif(tiktok_users_fit$fit)
 ```
 
