@@ -420,35 +420,47 @@ Based on AIC and BIC, model 2 (the model without plays) is a better fit. Therefo
 
 ### Determining whether interaction terms are needed
 
+We also want to determine whether there are any significant interaction effects among our predictor variables. To do this, we can start by adding all of the interaction terms we are interested in, and then eliminating the insignificant variables through assessing p-value and cross validation.
+
+This is a table with all of our interaction terms:
+
 ```{r}
 model_with_interaction <- linear_reg() |>
   set_engine("lm") |>
   fit(followers ~ likes + shares + comments + total_videos + video_length_bin2 + video_length_bin3 + video_length_bin2*(likes + shares + total_videos) + video_length_bin3*(likes + shares + total_videos), data = train_transformed)
 
 model_with_interaction |>
-  tidy() |>
+  tidy(conf.int = TRUE) |>
   kable(digits = 3)
 ```
 
+We can see from the p-values in the table that likes:video_length_bin3 and shares:video_length_bin3 seem to be the only statistically significant interaction terms. Therefore, those terms should certainly be in our model. All three of the interaction terms associated with video_length_bin2 have extremely high p-values and low coefficients, meaning that video_length_bin2 is insignificant. The p-value for total_videos:video_length_bin3 is not less than our significance level of 0.05, but it is still low. We can use AIC and BIC tests to compare how well a model with our without this term fits our data.
+
 ```{r}
+model_with_interaction1 <- linear_reg() |>
+  set_engine("lm") |>
+  fit(followers ~ likes + shares + comments + total_videos + video_length_bin2 + video_length_bin3 + likes * video_length_bin3 + shares * video_length_bin3, data = train_transformed)
+
 model_with_interaction2 <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ likes + shares + comments + total_videos + video_length_bin2 + shares * video_length_bin2 + total_videos * video_length_bin2 + total_videos, data = train_transformed)
-
-model_with_interaction2 |>
-  tidy() |>
-  kable(digits = 3)
+  fit(followers ~ likes + shares + comments + total_videos + video_length_bin2 + video_length_bin3 + likes * video_length_bin3 + shares * video_length_bin3 + total_videos * video_length_bin3, data = train_transformed)
 ```
+
+Model 1:
 
 ```{r}
-glance(m2)|>
+glance(model_with_interaction1)|>
   select(adj.r.squared, AIC, BIC)
 ```
+
+Model2:
 
 ```{r}
 glance(model_with_interaction2)|>
   select(adj.r.squared, AIC, BIC)
 ```
+
+While the additional interaction term marginally increases the adjusted r-squared and slightly decreases the AIC, it also increases the BIC by about 3. Because of these mixed results, we chose the simpler model (the model without the additional interaction term), in pursuit of parsimony.
 
 #### Results
 
