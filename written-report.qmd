@@ -42,7 +42,7 @@ The original data curators collected the data using David Teather's open-source 
 We begin our EDA process by first examining the dataset.
 
 ```{r}
-head(tiktok, 10)
+print(head(tiktok), digits = 2, width = 80)
 ```
 
 We have the following columns:
@@ -127,21 +127,45 @@ create_individual_residual_plot <- function(predictor, data) {
   ggplot(augmented_data, aes(x = .fitted, y = .resid)) +
     geom_point(alpha = 0.5) +
     geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-    labs(x = "Fitted Values", y = "Residuals", title = paste("avg", predictor)) +
+    labs(title = paste("avg", predictor)) + 
     theme_minimal() +
     theme(
       axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 8),
-      plot.title = element_text(size = 14, face = "bold"),
-      axis.title = element_text(size = 12)
+      plot.title = element_text(size = 10, face = "bold"),
+      axis.title = element_blank(), 
+      axis.ticks = element_blank(), 
     )
 }
 
+predictor_vars <- c("likes", "shares", "comments", "plays", "total_videos")
 individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plot(.x, tiktok_users))
 
-# Patchwork for visualization 
 combined_plots <- reduce(individual_residual_plots, `+`)
-final_plot <- combined_plots + plot_layout(ncol = 3, nrow = 2)
-final_plot
+
+final_plot <- combined_plots + 
+  plot_layout(ncol = 3, nrow = 2) + 
+  plot_annotation(
+    title = "Residuals vs. Fitted",
+    caption = "Fitted Values",
+    theme = theme(
+      plot.title = element_text(hjust = 0.5, size = 10, face = "bold"),
+      plot.caption = element_text(hjust = 0.5, size = 11)
+    )
+  ) 
+
+final_plot <- final_plot & 
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 10),
+    plot.subtitle = element_text(size = 15)
+  )
+
+wrap_elements(final_plot) +
+  labs(tag = "Residuals") +
+  theme(
+    plot.tag = element_text(size = rel(1), angle = 90),
+    plot.tag.position = "left"
+  )
+
 ```
 
 It's clear that all our predictors variables violates constant variance. There's a clear outward spread for likes, shares, comments, plays and video_length, while an inward spread for total_videos.
@@ -192,10 +216,93 @@ individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plo
 
 combined_residual_plot <- wrap_plots(individual_residual_plots, ncol = 2)
 
-combined_residual_plot
+final_plot <- combined_residual_plot + 
+  plot_layout(ncol = 3, nrow = 2) + 
+  plot_annotation(
+    title = "Residuals vs. Fitted",
+    caption = "Fitted Values",
+    theme = theme(
+      plot.title = element_text(hjust = 0.5, size = 10, face = "bold"),
+      plot.caption = element_text(hjust = 0.5, size = 11)
+    )
+  ) 
+
+final_plot <- final_plot & 
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 10),
+    plot.subtitle = element_text(size = 15)
+  )
+
+wrap_elements(final_plot) +
+  labs(tag = "Residuals") +
+  theme(
+    plot.tag = element_text(size = rel(1), angle = 90),
+    plot.tag.position = "left"
+  )
 ```
 
-Although there's still slight signs of fanning going on, it's a lot less severe than before. For now, this concludes our EDA/data cleaning process and we move onto our model selection process.
+The residual plots don't seem to suggest any underlying patterns about linearity. As such, we conclude the predictors satisfy linearity and constant variance.
+
+We can also assume independence is met. Each of the videos are by individual creators, therefore the videos are independent of each other.
+
+We continue with normality.
+
+```{r}
+create_individual_residual_histogram <- function(predictor, data) {
+  model <- linear_reg() |>
+    set_engine("lm") |>
+    fit(reformulate(predictor, response = "followers"), data = data)
+  
+  augmented_data <- augment(model$fit)
+  
+  ggplot(augmented_data, aes(x = .resid)) +
+    geom_histogram(bins = 40, fill = "blue", color = "black", alpha = 0.5) +
+    labs(title = paste(predictor)) + 
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+      plot.title = element_text(size = 12, face = "bold"),
+      axis.title.x = element_blank(), 
+      axis.title.y = element_blank(), 
+      axis.ticks = element_blank(),
+      axis.text.y = element_text(size = 8)
+    )
+}
+
+predictor_vars <- c("likes", "shares", "comments", "plays", "total_videos")
+
+individual_residual_histograms <- map(predictor_vars, ~create_individual_residual_histogram(.x, tiktok_users))
+
+combined_residual_plot <- wrap_plots(individual_residual_histograms, ncol = 2)
+
+final_hist_plot <- combined_residual_plot + 
+  plot_layout(ncol = 3, nrow = 2) + 
+  plot_annotation(
+    title = "Residual Distribution for Each Predictor",
+    caption = "Residual",
+    theme = theme(
+      plot.title = element_text(hjust = 0.5, size = 10, face = "bold"),
+      plot.caption = element_text(hjust = 0.5, size = 11)
+    )
+  ) 
+
+final_hist_plot <- final_hist_plot & 
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 10),
+    plot.subtitle = element_text(size = 15)
+  )
+
+wrap_elements(final_hist_plot) +
+  labs(tag = "count") +
+  theme(
+    plot.tag = element_text(size = rel(1), angle = 90),
+    plot.tag.position = "left"
+  )
+```
+
+Normality seems to be satisfied for each of the predictors except total_videos and possibly shares.
+
+For now, this concludes our EDA/data cleaning process and we move onto our model selection process.
 
 Methodology
 
@@ -310,61 +417,6 @@ glance(m2)|>
 ```
 
 Based on AIC and BIC, model 2 (the model without plays) is a better fit. Therefore, we choose to remove plays from the model and leave likes in the model to deal with the multicollinearity.
-
-```{r}
-tiktok_aug <- augment(m2$fit)
-
-ggplot(data = tiktok_aug, aes(x = .fitted, y = .resid)) +
-    geom_point() +
-    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-    labs(x = "Fitted values",
-         y = "Residuals",
-         title = "Residuals vs. fitted")
-
-resid_hist <- ggplot(data = tiktok_aug, aes(x = .resid)) +
-    geom_histogram() +
-    labs(x = "Residuals",
-         title = "Distribution of residuals")
-  resid_hist
-  
-ggplot(data = tiktok_aug, aes(x = likes, y = .resid)) +
-    geom_point() +
-    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-    labs(x = "Fitted values",
-         y = "Residuals",
-         title = "Residuals vs. fitted")
-
-ggplot(data = tiktok_aug, aes(x = shares, y = .resid)) +
-    geom_point() +
-  coord_cartesian(xlim = c(0, 50)) +
-    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-    labs(x = "Fitted values",
-         y = "Residuals",
-         title = "Residuals vs. fitted")
-
-ggplot(data = tiktok_aug, aes(x = comments, y = .resid)) +
-    geom_point() +
-    coord_cartesian(xlim = c(0, 50)) +
-    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-    labs(x = "Fitted values",
-         y = "Residuals",
-         title = "Residuals vs. fitted")
-
-ggplot(data = tiktok_aug, aes(x = plays, y = .resid)) +
-    geom_point() +
-    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-    labs(x = "Fitted values",
-         y = "Residuals",
-         title = "Residuals vs. fitted")
-
-ggplot(data = tiktok_aug, aes(x = total_videos, y = .resid)) +
-    geom_point() +
-  coord_cartesian(xlim = c(0, 50)) +
-    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-    labs(x = "Fitted values",
-         y = "Residuals",
-         title = "Residuals vs. fitted")
-```
 
 ### Determining whether interaction terms are needed
 
