@@ -481,6 +481,10 @@ predict_test <- predict_test |>
   mutate(
     .pred = as.numeric(.pred),
     followers = as.numeric(followers)
+  )|>
+  mutate(
+    .pred = round(.pred, digits=0),
+    followers = round(followers, digits=0)
   )
 
 rmse_result <- rmse(predict_test, truth = followers, estimate = .pred)
@@ -489,7 +493,7 @@ rmse_result
 rsquared
 ```
 
-RMSE of 0.5345 and Rsq of 0.168 indicates that the model does poorly in predicting the number of followers.
+RMSE of 0.73 and Rsq of 0.176 indicates that the model does poorly in predicting the number of followers.
 
 ```{r}
 predict_test|>
