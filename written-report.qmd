@@ -207,6 +207,7 @@ tiktok_recipe <- recipe(followers ~ ., data = tiktok_train) |>
 
 prepped_tiktok_recipe <- prep(tiktok_recipe, training = tiktok_train)
 train_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_train)
+test_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_test)
 ```
 
 ```{r}
@@ -471,7 +472,7 @@ This section also includes initial interpretations and conclusions drawn from th
 ```{r}
 #| eval: FALSE
 # REDO
-predict_test <- predict(m2, new_data = tiktok_test) |>
+predict_test <- predict(model_with_interaction2, new_data = test_transformed) |>
   bind_cols(tiktok_test) 
   
 #print(colnames(predict_test))
@@ -488,7 +489,12 @@ rmse_result
 rsquared
 ```
 
-RMSE of 1.399284 indicates the average prediction error in terms of the log.
+RMSE of 0.5345 and Rsq of 0.168 indicates that the model does poorly in predicting the number of followers.
+
+```{r}
+predict_test|>
+  select(c(.pred, followers))
+```
 
 ```{r}
 #| eval: FALSE
