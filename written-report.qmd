@@ -200,9 +200,9 @@ tiktok_test  <- testing(tiktok_split)
 
 ```{r}
 tiktok_recipe <- recipe(followers ~ ., data = tiktok_train) |>
+  step_center(all_numeric_predictors()) |>
   step_discretize(video_length, options = list(cuts = 3)) |>
   step_dummy(all_nominal_predictors()) |>
-  step_center(all_numeric_predictors()) |>
   step_normalize(all_numeric_predictors(), -all_outcomes())
 
 prepped_tiktok_recipe <- prep(tiktok_recipe, training = tiktok_train)
@@ -301,7 +301,7 @@ wrap_elements(final_hist_plot) +
   )
 ```
 
-Normality seems to be satisfied for each of the predictors except total_videos and possibly shares.
+Normality seems to be satisfied for each of the predictors except total_videos and possibly shares. However, even though total_videos and shares do not have completely normal distributions, because we have more than 30 observations in the dataset, we can conclude that normality is satisfied regardless of the distribution.
 
 For now, this concludes our EDA/data cleaning process and we move onto our model selection process.
 
@@ -419,6 +419,20 @@ glance(m2)|>
 
 Based on AIC and BIC, model 2 (the model without plays) is a better fit. Therefore, we choose to remove plays from the model and leave likes in the model to deal with the multicollinearity.
 
+### Determining whether video_length_bin is necessary
+
+```{r}
+glance(m2)|>
+  select(adj.r.squared, AIC, BIC)
+
+m3 <- linear_reg() |>
+  set_engine("lm") |>
+  fit(followers ~ likes + shares + comments + total_videos, data = train_transformed)
+
+glance(m3)|>
+  select(adj.r.squared, AIC, BIC)
+```
+
 ### Determining whether interaction terms are needed
 
 We also want to determine whether there are any significant interaction effects among our predictor variables. To do this, we can start by adding all of the interaction terms we are interested in, and then eliminating the insignificant variables through assessing p-value and cross validation.
@@ -496,6 +510,7 @@ rsquared
 RMSE of 0.73 and Rsq of 0.176 indicates that the model does poorly in predicting the number of followers.
 
 ```{r}
+#| eval: FALSE
 predict_test|>
   select(c(.pred, followers))
 ```
