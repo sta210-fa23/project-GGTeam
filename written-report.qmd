@@ -187,7 +187,7 @@ transformed_tiktok_users <- tiktok |>
     total_videos = mean(n_total_vids)
   ) |>
   mutate(
-    followers = log(followers + 1),
+    followers = log(followers),
   ) |>
   select(-user_name)
 
@@ -397,6 +397,8 @@ map_df(tiktok_fit_rs1$.extracts, ~ .x[[1]][[1]]) |>
   summarise(mean_adj_rsq = mean(adj.r.squared), 
             mean_aic = mean(AIC), 
             mean_bic = mean(BIC))
+
+collect_metrics(tiktok_fit_rs1, summarize = TRUE)
 ```
 
 ```{r}
@@ -405,21 +407,13 @@ map_df(tiktok_fit_rs2$.extracts, ~ .x[[1]][[1]]) |>
   summarise(mean_adj_rsq = mean(adj.r.squared), 
             mean_aic = mean(AIC), 
             mean_bic = mean(BIC))
-```
 
-```{r}
-glance(m1)|>
-  select(adj.r.squared, AIC, BIC)
-```
-
-```{r}
-glance(m2)|>
-  select(adj.r.squared, AIC, BIC)
+collect_metrics(tiktok_fit_rs2, summarize = TRUE)
 ```
 
 Based on AIC and BIC, model 2 (the model without plays) is a better fit. Therefore, we choose to remove plays from the model and leave likes in the model to deal with the multicollinearity.
 
-### Determining whether video_length_bin is necessary
+### Determining whether video_length_bin and comments are necessary
 
 ```{r}
 glance(m2)|>
@@ -427,7 +421,7 @@ glance(m2)|>
 
 m3 <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ likes + shares + comments + total_videos, data = train_transformed)
+  fit(followers ~ likes + shares + total_videos, data = train_transformed)
 
 glance(m3)|>
   select(adj.r.squared, AIC, BIC)
