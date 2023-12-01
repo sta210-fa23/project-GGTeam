@@ -477,51 +477,53 @@ map_df(tiktok_fit_rs3$.extracts, ~ .x[[1]][[1]]) |>
             mean_bic = mean(BIC))
 ```
 
-We can see that when we remove video_length, AIC and BIC both significantly decrease. and adjusted r-squared increases. However, RMSE also increases. This means that a model without video_length may fit our data better, however it also performs worse when it comes to prediction (there is more distance between predicted and observed values). Because of this, we should keep video_length in our model.
+We can see that when we remove video_length, AIC and BIC both significantly decrease and adjusted r-squared increases. However, RMSE also increases. This means that a model without video_length may fit our data better, however it also performs worse when it comes to prediction (there is more distance between predicted and observed values). Because of this, we should keep video_length in our model.
 
 ### Determining whether interaction terms are needed
 
-We also want to determine whether there are any significant interaction effects among our predictor variables. To do this, we can start by adding all of the interaction terms we are interested in, and then eliminating the insignificant variables through assessing p-value and cross validation.
+We also want to determine whether there are any significant interaction effects among our predictor variables. To do this, we can start by adding all of the interaction terms associated with video_length bins and observing our tidy table for significant coefficients.
 
 This is a table with all of our interaction terms:
 
 ```{r}
 model_with_interaction <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ likes + shares + comments + total_videos + video_length_bin2 + video_length_bin3 + video_length_bin2*(likes + shares + total_videos) + video_length_bin3*(likes + shares + total_videos), data = train_transformed)
+  fit(followers ~ plays + shares + comments + total_videos + video_length_bin2 + video_length_bin3 + video_length_bin2*(likes + shares + total_videos) + video_length_bin3*(likes + shares + total_videos), data = train_transformed)
 
 model_with_interaction |>
   tidy(conf.int = TRUE) |>
   kable(digits = 3)
 ```
 
-We can see from the p-values in the table that likes:video_length_bin3 and shares:video_length_bin3 seem to be the only statistically significant interaction terms. Therefore, those terms should certainly be in our model. All three of the interaction terms associated with video_length_bin2 have extremely high p-values and low coefficients, meaning that video_length_bin2 is insignificant. The p-value for total_videos:video_length_bin3 is not less than our significance level of 0.05, but it is still low. We can use AIC and BIC tests to compare how well a model with our without this term fits our data.
+We can see from the p-values in the table that likes:video_length_bin3 and shares:video_length_bin3 seem to be the only statistically significant interaction terms. Therefore, those terms should certainly be in our model. All three of the interaction terms associated with video_length_bin2 have extremely high p-values and low coefficients, meaning that video_length_bin2 is insignificant. The p-value for total_videos:video_length_bin3 is not less than our significance level of 0.05, but it is still low. We can now perform two CV tests: one with likes:video_length_bin3 and shares:video_length_bin3, and one with total_videos:video_length_bin3, as well.
+
+Model 1 (with two interaction terms):
+
+RMSE:
 
 ```{r}
-model_with_interaction1 <- linear_reg() |>
-  set_engine("lm") |>
-  fit(followers ~ likes + shares + comments + total_videos + video_length_bin2 + video_length_bin3 + likes * video_length_bin3 + shares * video_length_bin3, data = train_transformed)
+tiktok_recipe4 <- recipe(followers ~ ., data = tiktok_train) |>
+  step_rm(likes) |>
+  step_discretize(video_length, options = list(cuts = 3)) |>
+  step_interact(~ likes:video_length) |>
+  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
+  step_center(all_numeric_predictors(), -all_outcomes())
 
-model_with_interaction2 <- linear_reg() |>
-  set_engine("lm") |>
-  fit(followers ~ likes + shares + comments + total_videos + video_length_bin2 + video_length_bin3 + likes * video_length_bin3 + shares * video_length_bin3 + total_videos * video_length_bin3, data = train_transformed)
+tiktok_wflow4 <- workflow() |>
+  add_recipe(tiktok_recipe4) |>
+  add_model(linear_reg() |>
+            set_engine("lm"))
+
+tiktok_fit_rs4 <- tiktok_wflow4 |>
+  fit_resamples(
+    resamples = folds, 
+    control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
+  )
+
+collect_metrics(tiktok_fit_rs3, summarize = TRUE) |>
+  filter(.metric == "rmse") |>
+  select(mean)
 ```
-
-Model 1:
-
-```{r}
-glance(model_with_interaction1)|>
-  select(adj.r.squared, AIC, BIC)
-```
-
-Model2:
-
-```{r}
-glance(model_with_interaction2)|>
-  select(adj.r.squared, AIC, BIC)
-```
-
-While the additional interaction term marginally increases the adjusted r-squared and slightly decreases the AIC, it also increases the BIC by about 3. Because of these mixed results, we chose the simpler model (the model without the additional interaction term), in pursuit of parsimony.
 
 #### Results
 
