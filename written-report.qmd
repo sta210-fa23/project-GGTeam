@@ -92,7 +92,9 @@ tiktok_train |>
         axis.title.y = element_text(size = rel(0.8)))
 ```
 
-```{r, echo=FALSE}
+```{r}
+#| echo: FALSE
+#| eval: false
 min_followers <- min(tiktok_train$followers, na.rm = TRUE)
 max_followers <- max(tiktok_train$followers, na.rm = TRUE)
 mean_followers <- mean(tiktok_train$followers, na.rm = TRUE)
@@ -103,8 +105,7 @@ print(paste("Minimum number of followers:", min_followers))
 print(paste("Maximum number of followers:", max_followers))
 ```
 
-The distribution of our response variable follows, is unimodal and
-heavily right skewed. The mean is 16,220,526.3 and the standard deviation is 7,710,869.8. The minimum is 8,900,000 and the maximum is 52,300,000. Based on our standard deviation, there seems to be a lot of variation in our dataset; and from our plot, there are major outliers.
+The distribution of our response variable follows, is unimodal and heavily right skewed. The mean is 16,220,526.3 and the standard deviation is 7,710,869.8. The minimum is 8,900,000 and the maximum is 52,300,000. Based on our standard deviation, there seems to be a lot of variation in our dataset; and from our plot, there are major outliers.
 
 Here are the distributions for the predictor variables we are interested in:
 
