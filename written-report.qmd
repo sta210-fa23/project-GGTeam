@@ -391,41 +391,93 @@ tiktok_fit_rs2 <- tiktok_wflow2 |>
   )
 ```
 
+Model 1: (without likes):
+
+RMSE:
+
 ```{r}
-collect_metrics(tiktok_fit_rs1, summarize = TRUE)
+
+collect_metrics(tiktok_fit_rs1, summarize = TRUE) |>
+  filter(.metric == "rmse") |>
+  select(mean)
+
+```
+
+Adj. r-sq, AIC, BIC:
+
+```{r}
 map_df(tiktok_fit_rs1$.extracts, ~ .x[[1]][[1]]) |>
   summarise(mean_adj_rsq = mean(adj.r.squared), 
             mean_aic = mean(AIC), 
             mean_bic = mean(BIC))
-
-collect_metrics(tiktok_fit_rs1, summarize = TRUE)
 ```
 
+Model 2 (without plays):
+
+RMSE:
+
 ```{r}
-collect_metrics(tiktok_fit_rs2, summarize = TRUE)
+collect_metrics(tiktok_fit_rs2, summarize = TRUE) |>
+  filter(.metric == "rmse") |>
+  select(mean)
+```
+
+Adj. r-sq, AIC, BIC:
+
+```{r}
 map_df(tiktok_fit_rs2$.extracts, ~ .x[[1]][[1]]) |>
   summarise(mean_adj_rsq = mean(adj.r.squared), 
             mean_aic = mean(AIC), 
             mean_bic = mean(BIC))
-
-collect_metrics(tiktok_fit_rs2, summarize = TRUE)
 ```
 
-Based on AIC and BIC, model 2 (the model without plays) is a better fit. Therefore, we choose to remove plays from the model and leave likes in the model to deal with the multicollinearity.
+While model 1 has a higher RMSE, it also has a lower AIC and BIC, and a higher adjusted r-squared. Because of this, we can conclude that model 1 (the model without likes) is a better fit. Therefore, we choose to remove likes from the model and leave plays in the model to deal with the multicollinearity.
 
-### Determining whether video_length_bin and comments are necessary
+### Determining whether video_length_bin are necessary
+
+We can see from our previous tidy table that the p-values associated with the video length bins are high, indicating that the variables aren't significant. Because of this, we can do a cross validation test to see how a model without video_length performs
+
+RMSE:
 
 ```{r}
-glance(m2)|>
-  select(adj.r.squared, AIC, BIC)
 
-m3 <- linear_reg() |>
-  set_engine("lm") |>
-  fit(followers ~ likes + shares + total_videos, data = train_transformed)
+set.seed(29)
+folds <- vfold_cv(tiktok_train, v = 5)
 
-glance(m3)|>
-  select(adj.r.squared, AIC, BIC)
+
+tiktok_recipe3 <- recipe(followers ~ ., data = tiktok_train) |>
+  step_rm(likes) |>
+  step_rm(video_length) |>
+  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
+  step_center(all_numeric_predictors(), -all_outcomes())
+
+tiktok_wflow3 <- workflow() |>
+  add_recipe(tiktok_recipe3) |>
+  add_model(linear_reg() |>
+            set_engine("lm"))
+
+tiktok_fit_rs3 <- tiktok_wflow3 |>
+  fit_resamples(
+    resamples = folds, 
+    control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
+  )
+
+collect_metrics(tiktok_fit_rs3, summarize = TRUE) |>
+  filter(.metric == "rmse") |>
+  select(mean)
+
 ```
+
+Adj. r-sq, AIC, BIC:
+
+```{r}
+map_df(tiktok_fit_rs3$.extracts, ~ .x[[1]][[1]]) |>
+  summarise(mean_adj_rsq = mean(adj.r.squared), 
+            mean_aic = mean(AIC), 
+            mean_bic = mean(BIC))
+```
+
+We can see that when we remove video_length, AIC and BIC both significantly decrease. and adjusted r-squared increases. However, RMSE also increases. This means that a model without video_length may fit our data better, however it also performs worse when it comes to prediction (there is more distance between predicted and observed values). Because of this, we should keep video_length in our model.
 
 ### Determining whether interaction terms are needed
 
