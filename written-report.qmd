@@ -461,7 +461,7 @@ The difference between the model's evaluations aren't large. Model 1 has a sligh
 
 We can see from our previous tidy table that the p-values associated with the video length bins are high, indicating that the variables aren't significant. Because of this, we can do once again do cross validation to test to see how a model without video_length and likes performs against m1 (our chosen model without likes but contains video length).
 
-RMSE:
+Model 3 (without video length and likes):
 
 ```{r}
 set.seed(29)
@@ -486,8 +486,6 @@ tiktok_fit_rs3 <- tiktok_wflow3 |>
   )
 
 ```
-
-Adj. r-sq, AIC, BIC:
 
 ```{r}
 rmse3 <- collect_metrics(tiktok_fit_rs3, summarize = TRUE) |>
@@ -525,8 +523,6 @@ model_with_interaction |>
 We can see from the p-values in the table that likes:video_length_bin3 and shares:video_length_bin3 seem to be the only statistically significant interaction terms. Therefore, those terms should certainly be in our model. All three of the interaction terms associated with video_length_bin2 have extremely high p-values and low coefficients, meaning that video_length_bin2 is insignificant. The p-value for total_videos:video_length_bin3 is not less than our significance level of 0.05, but it is still low. We can preform CV on a model with likes:video_length_bin and shares:video_length_bin.
 
 Model 4 (with plays:video_length and likes:video_length interaction terms):
-
-RMSE:
 
 ```{r}
 tiktok_recipe4 <- recipe(followers ~ ., data = tiktok_train) |>
@@ -599,11 +595,15 @@ combined_metrics3
 
 Note that we log transformed our response variable. In order to evaluate the meaning of our RMSE of 0.4067, we take exp(0.4067) \~ 1.502. This value is the multiplicative square difference. For example, if have log followers of 16.04552, our model will be more or less off by $16.04552 \pm \sqrt{.4067} \implies\exp(16.04552 \pm.0.6378) \implies 4914595 < 9,299,954 < 17,601,945$. This means our model does a fairly poor at predicting a tiktok user's followers. We also have an RSQ of 0.3615, indicating only 36.2% of the variability in followers can be explained by our predictor variables.
 
-We can see from this model above that there are several terms that are significant when determining the number of followers a tik tok user has. Likes, for example, always had the strongest correlation with followers throughout our modeling process. This makes sense, as likes represent how much the users are enjoying a creator's content. Total videos, as well, seems to have a clear positive relationship with follower count. This also would align with our expectations, as the more videos you make, the more engagement your profile is likely to have. Lastly, we can look at the video length bin variable, which separates a user's average video length into three bins. We can see from the model, that the middle video length bin (2) has statistically significant difference from the other two video length bins, as well as a statistically significant interaction term with total videos. This shows that not only do medium length videos generate the most followers, but medium length videos combined with a higher number of total videos significantly increase follower count as well. This is certainly an interesting finding from our analysis, as it isn't the most expected result.
+Interpreting useful coefficients:
+
+-   we were confused about how to write a meaning interpretation out since the scale of our data is so large. We could use "for every additional likes", however a video could have millions of likes.
+
+Interpreting intercept (since we mean centered all predictors):
 
 #### Conclusion
 
-We originally decided to look at TikTok's data and how follower count (a huge driver of engagement) is impacted by other aspects of a user's account. We learned that it is extremely difficult to correctly predict follower count, given our model only captures 20.5% of the variability in the dataset. More complex models seemed to only worsen performance, and we chose to prioritize parsimony for this reason - however, even the simple models did not predict well.
+We originally decided to look at TikTok's data and how follower count (a huge driver of engagement) is impacted by other aspects of a user's account. We learned that it is extremely difficult to correctly predict follower count, given our model only captures 36.2% of the variability in the dataset. More complex models seemed to only worsen performance, and we chose to prioritize parsimony for this reason - however, even the simple models did not predict well.
 
 Our dataset was extremely difficult to work with, given that it did not meet the conditions for linear regression (linearity and constant variance), and contained multicollinearity. The variables were also extremely large, and needed to be scaled down to have meaningful coefficients - which made late interpretation significantly more difficult. A more complex model was likely needed, that was beyond the scope of our knowledge, given how poorly our model performed at the end. There also may be underlying relationships between follower count, and other portions of the TikTok algorithm that are not contained in the dataset, which our model might have also failed to capture. In order to improve our analysis, it would be helpful to comb TikTok for a dataset that potentially contains more variables.
 
