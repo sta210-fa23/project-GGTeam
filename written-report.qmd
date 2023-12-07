@@ -86,7 +86,7 @@ Here's a distribution of our response variable, user followers, from our trainin
 tiktok_train |>
   ggplot(aes(x = followers)) + 
   geom_histogram() + 
-  labs(x = "Followers", y = "Count", title = "Distribution of Number of Followers") + 
+  labs(x = "Followers", y = "Count", title = "Distribution of Number of Followers", bins=100) + 
   scale_x_continuous(labels = label_number()) + 
   theme(aspect.ratio = .5, 
         plot.title = element_text(size = rel(0.8), face = "bold"),
@@ -342,7 +342,6 @@ vif(tiktok_users_fit$fit)
 Therefore, we constructed two linear regression model fitting variable 'followers' with predictor variables 'likes', 'shares', 'comments', 'plays', 'video_length_bin', and 'total_videos.' Our first model m1 had all the previously indicated predictor variables excluding variable 'likes' while our second model m2 had those predictor variables excluding variable 'plays.' We compared these two models because meaning they have the highest likelihood for multicollinearity.
 
 ```{r}
-#| include: false
 m1 <- linear_reg() |>
   set_engine("lm") |>
   fit(followers ~ . - likes, data = train_transformed)
@@ -353,7 +352,6 @@ m1 |>
 ```
 
 ```{r}
-#| include: false
 m2 <- linear_reg() |>
   set_engine("lm") |>
   fit(followers ~ . - plays, data = train_transformed)
@@ -593,7 +591,7 @@ combined_metrics3 <- bind_rows(rmse_result3, rsq_result3)
 combined_metrics3
 ```
 
-Note that we log transformed our response variable. In order to evaluate the meaning of our RMSE of 0.4067, we take exp(0.4067) \~ 1.502. This value is the multiplicative square difference. For example, if have log followers of 16.04552, our model will be more or less off by $16.04552 \pm \sqrt{.4067} \implies\exp(16.04552 \pm.0.6378) \implies 4914595 < 9,299,954 < 17,601,945$. This means our model does a fairly poor at predicting a tiktok user's followers. We also have an RSQ of 0.3615, indicating only 36.2% of the variability in followers can be explained by our predictor variables.
+Note that we log transformed our response variable. In order to evaluate the meaning of our RMSE of 0.4067, we take exp(0.4067) \~ 1.502. This value is the multiplicative square difference. For example, if have log followers of 16.04552, our model will be more or less off by $16.04552 \pm .4067^2 \implies \exp(16.04552 \pm 0.1654) \implies 7882219 < 9,299,954 < 10,972,689$. This means our model does a fairly poor at predicting a tiktok user's followers. We also have an RSQ of 0.3615, indicating only 36.2% of the variability in followers can be explained by our predictor variables.
 
 Interpreting useful coefficients:
 
