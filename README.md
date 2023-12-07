@@ -1,6 +1,9 @@
 # Predicting Tik-Tok User Data Based on Video Data
 by GG-Team (Will Chen, Katelyn Cai, Hannah Choi, Weston Slayton)
 
+# Presentation
+https://docs.google.com/presentation/d/18ZayU1tHrilcA2Z3Z3cIBiqDSe69scSLH7CQ7ZyPimA/edit?usp=sharing
+
 # Data Dictionary
 user_name: Tiktok username which data is drawn from
 
