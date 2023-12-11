@@ -180,7 +180,11 @@ wrap_elements(final_plot) +
 
 It's clear that all our predictors variables violate constant variance. There's a clear outward fan spread for likes, shares, comments, plays and video_length, and an inward spread for total_videos. In order to deal with constant variance, we log transformed our response variable of followers.
 
-Because Tiktok videos are commonly divided into 15-second, 1 minute, or 3 minute videos, it also makes sense to process average bin video length into levels, corresponding to "short", "medium" and "long." This also allows us to search for interesting interactions effects video_length might have with other predictors such as likes. Therefore, we'll add step_discretize() into the recipe for video_length. We also mean-centered all our numerical variables to make our intercept meaningful and normalized them to reduce standardize them and reduce multicollinearity produced by higher-order terms.
+Because Tiktok videos are commonly divided into 15-second, 1 minute, or 3 minute videos, it also makes sense to process average bin video length into levels, corresponding to "short", "medium" and "long." This also allows us to search for interesting interactions effects video_length might have with other predictors such as likes. Therefore, we'll add step_discretize() into the recipe for video_length. We also mean-centered all our numerical variables to make our intercept meaningful and normalized them to reduce standardize them and reduce multicollinearity produced by higher-order terms. It's clear that all our predictors variables violates constant variance. There's a clear outward spread for likes, shares, comments, plays and video_length, and an inward spread for total_videos.
+
+For interpretability, it makes sense to process average bin video length into levels, corresponding to "short", "medium" and "long." This also allows us to search for interesting interactions effects video_length might have with other predictors such as likes. Therefore, we'll add step_discretize() into the recipe for video_length.
+
+In order to deal with constant variance, we log transformed our response variable of followers.
 
 ```{r}
 transformed_tiktok_users <- tiktok |>
@@ -305,17 +309,9 @@ wrap_elements(final_hist_plot) +
 
 Normality seems to be satisfied for each of the predictors except total_videos and possibly shares. However, even though total_videos and shares do not have completely normal distributions, because we have more than 30 observations in the dataset, we can conclude that normality is satisfied regardless of the distribution.
 
-We use the transformed dataset to split our data into testing and training.
+We use the transformed dataset to split our data into testing and training. Before constructing our model, we chose to log transform our response variable 'followers' because, prior to the transformation, the variables were not to scale and returned coefficients of 0.000. We also mean-centered all our predictor variables to make our intercept meaningful.
 
-```{r}
-set.seed(29)
-
-tiktok_split <- initial_split(transformed_tiktok_users, prop = 0.7)
-tiktok_train <- training(tiktok_split)
-tiktok_test  <- testing(tiktok_split)
-```
-
-#### **Methodology** 
+#### **Methodology**
 
 In honing our final model, we used the transformed dataset to reduce multicollinearity and conduct a cross-validation test on tiktok_train.
 
@@ -496,8 +492,6 @@ combined_metrics3
 
 We can see that when we remove video_length, it makes sense that AIC and BIC both decrease. We also see that adjusted r-squared only slightly increased. We wish to further evaluation video_length and potentially tease out some of its importance for our model. Therefore, we explore its role as an interaction term.
 
-We can see that when we remove video_length, AIC and BIC both significantly decrease and adjusted r-squared increases. However, RMSE also increases. This means that a model without video_length may fit our data better, however it also performs worse when it comes to prediction (there is more distance and error between predicted and observed values). Because of this, we should keep video_length in our model.
-
 ### Determining whether interaction terms are needed
 
 To do this, we can start by adding all of the interaction terms associated with video_length bins and observing our tidy table for significant coefficients. We will be incorporating both likes and plays into this model for a fuller evaluation of video_length as an interaction term. The end goal is to determine whether the parsimonious model of not including likes and video_length bin (model 3) is a better predictor than a model could potentially fully incorporate video_length into inself.
@@ -594,6 +588,8 @@ Interpreting useful coefficients:
 -   we were confused about how to write a meaning interpretation out since the scale of our data is so large. We could use "for every additional likes", however a video could have millions of likes.
 
 Interpreting intercept (since we mean centered all predictors): We can see from this model above that there are several terms that are significant when determining the number of followers a tik tok user has. The number of total videos, comments, and plays seems to have a clear positive relationship with follower count. This also would align with our expectations, as the more videos you make, the more engagement your profile is likely to have and more followers you may gain. Also, we can look at the video length bin variable, which separates a user's average video length into three bins. We can see from the model, that the middle video length bin (2) has statistically significant difference from the other two video length bins, as well as a statistically significant interaction term with total videos. This shows that not only do medium length videos generate the most followers, but medium length videos combined with a higher number of total videos significantly increase follower count as well. This is certainly an interesting finding from our analysis, as it isn't the most expected result.
+
+We can see from this model above that there are several terms that are significant when determining the number of followers a tik tok user has. The number of total videos, comments, and plays seems to have a clear positive relationship with follower count. This also would align with our expectations, as the more videos you make, the more engagement your profile is likely to have and more followers you may gain. Also, we can look at the video length bin variable, which separates a user's average video length into three bins. We can see from the model, that the middle video length bin (2) has statistically significant difference from the other two video length bins, as well as a statistically significant interaction term with total videos. This shows that not only do medium length videos generate the most followers, but medium length videos combined with a higher number of total videos significantly increase follower count as well. This is certainly an interesting finding from our analysis, as it isn't the most expected result.
 
 #### Conclusion
 
