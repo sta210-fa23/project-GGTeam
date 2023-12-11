@@ -207,8 +207,8 @@ transformed_tiktok_users <- tiktok |>
 ```{r}
 tiktok_recipe <- recipe(followers ~ ., data = tiktok_train) |>
   step_center(all_numeric_predictors()) |>
-  step_discretize(video_length, options = list(cuts = 3)) |>
   step_dummy(all_nominal_predictors()) |>
+  step_discretize(video_length, options = list(cuts = 3)) |>
   step_normalize(all_numeric_predictors())
 
 prepped_tiktok_recipe <- prep(tiktok_recipe, training = tiktok_train)
@@ -322,7 +322,7 @@ Upon conducting a VIF test, we found that likes and plays had the highest vif va
 ```{r}
 tiktok_users_fit <- linear_reg() |>
   set_engine("lm")|>
-  fit(followers ~ likes + shares + comments + plays + video_length_bin2 + video_length_bin3 + total_videos, data=train_transformed)
+  fit(followers ~ likes + shares + comments + plays + total_videos, data=train_transformed)
 
 vif(tiktok_users_fit$fit)
 ```
@@ -366,15 +366,15 @@ calc_model_stats <- function(x) {
 tiktok_recipe1 <- recipe(followers ~ ., data = tiktok_train) |>
   step_rm(likes) |>
   step_discretize(video_length, options = list(cuts = 3)) |>
-  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
   step_center(all_numeric_predictors(), -all_outcomes()) |>
+  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
   step_normalize(all_numeric_predictors())
 
 tiktok_recipe2 <- recipe(followers ~ ., data = tiktok_train) |>
   step_rm(plays) |>
   step_discretize(video_length, options = list(cuts = 3)) |>
-  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
   step_center(all_numeric_predictors(), -all_outcomes()) |>
+  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
   step_normalize(all_numeric_predictors())
 
 tiktok_wflow1 <- workflow() |>
@@ -490,35 +490,33 @@ combined_metrics3 <- bind_cols(rmse3, other_metrics3)
 combined_metrics3
 ```
 
-We can see that when we remove video_length, it makes sense that AIC and BIC both decrease. We also see that adjusted r-squared only slightly increased. We wish to further evaluation video_length and potentially tease out some of its importance for our model. Therefore, we explore its role as an interaction term.
+We can see that when we remove video_length, it makes sense that AIC and BIC both decrease. We also see that adjusted r-squared only slightly increased by approximately 0.002. Therefore, we prefer the parsimonious model without video length bins.
 
 ### Determining whether interaction terms are needed
 
-To do this, we can start by adding all of the interaction terms associated with video_length bins and observing our tidy table for significant coefficients. We will be incorporating both likes and plays into this model for a fuller evaluation of video_length as an interaction term. The end goal is to determine whether the parsimonious model of not including likes and video_length bin (model 3) is a better predictor than a model could potentially fully incorporate video_length into inself.
+We used domain knowledge to hypothesize several potential interaction variables. Our first idea was connecting average plays and likes (or other engagement metrics) to detect bot activities. Our second idea was connecting likes and total number of videos to evaluate the relationship between user engagement and activity. Our third idea was connecting average likes and shares to evaluate the viewer's reason for shares (to detect potential ridiculing sentiment assuming that they would not like the video they feel negatively towards). All interaction terms had low p-values, but the first and third interaction terms showed signs of multicollinearity by increasing the p-value of other variables in the model.
 
-This is a table with all of our interaction terms:
+This is a table with the second interaction term:
 
 ```{r}
 model_with_interaction <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ likes + plays + shares + comments + total_videos + video_length_bin2 + video_length_bin3 + video_length_bin2*(likes + shares + total_videos) + video_length_bin3*(likes + shares + total_videos), data = train_transformed)
+  fit(followers ~ likes + plays + shares + comments + total_videos + likes*total_videos, data = train_transformed)
 
 model_with_interaction |>
   tidy(conf.int = TRUE) |>
   kable(digits = 3)
 ```
 
-We can see from the p-values in the table that likes:video_length_bin3 and shares:video_length_bin3 seem to be the only statistically significant interaction terms. Therefore, those terms should certainly be in our model. All three of the interaction terms associated with video_length_bin2 have extremely high p-values and low coefficients, meaning that video_length_bin2 is insignificant. The p-value for total_videos:video_length_bin3 is not less than our significance level of 0.05, but it is still low. We can preform CV on a model with likes:video_length_bin and shares:video_length_bin.
+We can see from the p-values in the table that all variables seem to be statistically significant with the interaction term. Therefore, those terms should certainly be in our model. The new p-value for comments is not less than our significance level of 0.05, but it is still low. We can perform CV on a model with likes:total_videos.
 
-Model 4 (with plays:video_length and likes:video_length interaction terms):
+Model 4 (with likes:total_videos interaction terms):
 
 ```{r}
 tiktok_recipe4 <- recipe(followers ~ ., data = tiktok_train) |>
-  step_discretize(video_length, options = list(cuts = 3)) |>
-  step_interact(~ plays:video_length) |>
-  step_interact(~ likes:video_length) |>
-  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
+  step_interact(~ likes:total_videos) |>
   step_center(all_numeric_predictors(), -all_outcomes()) |>
+  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
   step_normalize(all_numeric_predictors())
 
 tiktok_wflow4 <- workflow() |>
@@ -546,12 +544,11 @@ combined_metrics4 <- bind_cols(rmse4, other_metrics4)
 combined_metrics4
 ```
 
-The mean RMSE (0.3378707) is barely smaller than model3, one without likes and video_length_bin (0.3389576). However given we are have included more terms, our adj r-square shows a slight increase (0.2839 vs. 0.26883, the latter is the parsimonious model), and BIC shows a noticeable decrease (130.3332 vs 105.9608). There's also a difference in AIC (91.944 vs 88.243). Becuase of the noticeable decrease in AIC and BIC going from model 4 to model 3 and because our the increase in our adj r-square isn't significant enough to consider, we choose the more parsimonious model, model 3.
+The mean RMSE (0.3282339) is barely smaller than that of model3, one without likes and video_length_bin (0.3389576). However given we are have included more terms, our adj r-square shows a clear increase (0.26883 to 0.3157319), BIC shows a slight increase (105.9608 to 108.3907), and AIC shows a slight decrease (88.243 to 81.8137). Because the increase in our adj r-square is very significant, AIC decreases, and BIC only increases by a small amount, we choose the new model, model 4.
 
 #### Results
 
 ```{r}
-#| include: false
 tiktok_fit4 <- tiktok_wflow4 |>
   fit(data = tiktok_train)
 # predict on test
