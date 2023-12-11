@@ -69,6 +69,14 @@ tiktok_users <- tiktok |>
 head(tiktok_users, 5)
 ```
 
+```{r}
+set.seed(29)
+
+tiktok_split <- initial_split(tiktok_users, prop = 0.7)
+tiktok_train <- training(tiktok_split)
+tiktok_test  <- testing(tiktok_split)
+```
+
 Note that no data leakage is introduced in this process since we are just summarizing by the means of the predictor variable per user. When we split, it'll split based on observations, which are users.
 
 Here's a distribution of our response variable, user followers, from our training set.
@@ -202,6 +210,12 @@ transformed_tiktok_users <- tiktok |>
     followers = log(followers),
   ) |>
   select(-user_name)
+
+set.seed(29)
+
+tiktok_split <- initial_split(transformed_tiktok_users, prop = 0.7)
+tiktok_train <- training(tiktok_split)
+tiktok_test  <- testing(tiktok_split)
 ```
 
 ```{r}
@@ -548,6 +562,8 @@ The mean RMSE (0.3282339) is barely smaller than that of model3, one without lik
 
 #### Results
 
+Model 4 performance on test:
+
 ```{r}
 tiktok_fit4 <- tiktok_wflow4 |>
   fit(data = tiktok_train)
@@ -562,9 +578,8 @@ combined_metrics4 <- bind_rows(rmse_result4, rsq_result4)
 combined_metrics4
 ```
 
-Model 3 performance on test:
-
 ```{r}
+#| include: false
 tiktok_fit3 <- tiktok_wflow3 |>
   fit(data = tiktok_train)
 
