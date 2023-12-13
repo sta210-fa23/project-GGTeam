@@ -131,7 +131,256 @@ ggplot(long_train, aes(x = value)) +
 
 ```
 
-Judging by the number of outliers in our dataset, we are interested in knowing how this might influence our model conditions, specifically constant variance. Constant variance could be violated since we aren't working with a response that's looks normally distributed. Hence, we have the following residual plots for each of the predictor variables we are interested in. The following plots are generated from creating individual linear regression models with just the predictor variable and average follower response.
+```{r}
+transformed_tiktok_users <- tiktok |>
+  dplyr::group_by(user_name) |>
+  dplyr::summarize(
+    likes = mean(n_likes),
+    shares = mean(n_shares),
+    comments = mean(n_comments),
+    plays = mean(n_plays),
+    followers = mean(n_followers),
+    video_length = mean(video_length),
+    total_videos = mean(n_total_vids)
+  ) |>
+  mutate(
+    followers = log(followers),
+ #   comments = comments / 1000,         # Scale comments to hundreds
+#    likes = likes / 1000000,            # Scale likes to millions
+#    plays = plays / 1000000,            # Scale plays to tens of millions
+#    shares = shares / 1000,             # Scale shares to hundreds
+#    total_videos = total_videos / 1000  # Scale total_videos to units
+    #we scaled comments to hundreds, likes to millions, plays to tens of millions, shares to hundreds, and total_videos to units in order to make the coefficients of these predictors more interpretable
+  ) |>
+  select(-user_name)
+
+set.seed(29)
+
+tiktok_split <- initial_split(transformed_tiktok_users, prop = 0.7)
+tiktok_train <- training(tiktok_split)
+tiktok_test  <- testing(tiktok_split)
+```
+
+```{r}
+tiktok_recipe <- recipe(followers ~ ., data = tiktok_train) |>
+  step_center(all_numeric_predictors()) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_discretize(video_length, options = list(cuts = 3)) 
+  
+prepped_tiktok_recipe_df <- prep(tiktok_recipe, training = transformed_tiktok_users)
+dataset_transformed <- bake(prepped_tiktok_recipe_df, new_data = transformed_tiktok_users)
+
+prepped_tiktok_recipe <- prep(tiktok_recipe, training = tiktok_train)
+train_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_train)
+test_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_test)
+```
+
+## **Methodology**
+
+We want to use multiple linear regression to predict the number of followers a user has. We choose multiple linear regression rather than logistic regression because followers is a quantiative response variable. We start off with an initial model containing the predictors likes, shares, comments, plays, video_length (factor with 3 levels), total_videos, and followers, our response variable. Because Tiktok videos are commonly divided into 15-second, 1 minute, or 3 minute videos, we bin average video length into 3 levels, corresponding to "short", "medium" and "long." We also mean-center all our numerical variables to make our intercept meaningful. Here is a tidy table of our initial model:
+
+```{r initial-model}
+
+initial_fit <- linear_reg() |>
+  set_engine("lm")|>
+  fit(followers ~ ., data=train_transformed)
+
+initial_fit |>
+  tidy() |>
+  kable(digits = 4)
+```
+
+#### Detecting Multicollinearity & Model Comparison
+
+Upon conducting a VIF test, we found that likes and plays had the highest vif values (11.614 and 9.82 respectively):
+
+```{r}
+tiktok_users_fit <- linear_reg() |>
+  set_engine("lm")|>
+  fit(followers ~ ., data=train_transformed)
+
+vif(tiktok_users_fit$fit) |>
+  kable(digits = 3)
+```
+
+Therefore, we wanted to assess which model would perform better: a model without likes or a model without plays. To do this, we performed 5-fold cross validation and extracted the resulting AIC, BIC, adj.r-squared, and RMSE values for the two models:
+
+```{r}
+
+set.seed(29)
+folds <- vfold_cv(tiktok_train, v = 5)
+
+calc_model_stats <- function(x) {
+  glance(extract_fit_parsnip(x)) |>
+    select(adj.r.squared, AIC, BIC)
+}
+
+tiktok_recipe1 <- recipe(followers ~ ., data = train_transformed) |>
+  step_rm(likes)
+
+tiktok_recipe2 <- recipe(followers ~ ., data = train_transformed) |>
+  step_rm(plays)
+
+tiktok_wflow1 <- workflow() |>
+  add_recipe(tiktok_recipe1) |>
+  add_model(linear_reg() |>
+            set_engine("lm"))
+
+tiktok_wflow2 <- workflow() |>
+  add_recipe(tiktok_recipe2) |>
+  add_model(linear_reg() |>
+            set_engine("lm"))
+
+tiktok_fit_rs1 <- tiktok_wflow1 |>
+  fit_resamples(
+    resamples = folds, 
+    control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
+  )
+
+tiktok_fit_rs2 <- tiktok_wflow2 |>
+  fit_resamples(
+    resamples = folds, 
+    control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
+  )
+```
+
+Model 1: (without likes):
+
+```{r}
+# extract RMSE
+rmse <- collect_metrics(tiktok_fit_rs1, summarize = TRUE) |>
+  filter(.metric == "rmse") |>
+  select(mean) |>
+  rename(mean_rmse = mean)
+
+# extract adjusted R-squared, AIC, and BIC
+other_metrics <- map_df(tiktok_fit_rs1$.extracts, ~ .x[[1]][[1]]) |>
+  summarise(mean_adj_rsq = mean(adj.r.squared, na.rm = TRUE), 
+            mean_aic = mean(AIC, na.rm = TRUE), 
+            mean_bic = mean(BIC, na.rm = TRUE))
+
+combined_metrics <- bind_cols(rmse, other_metrics) 
+combined_metrics
+```
+
+Model 2 (without plays):
+
+```{r}
+# do the same for model 2
+rmse2 <- collect_metrics(tiktok_fit_rs2, summarize = TRUE) |>
+  filter(.metric == "rmse") |>
+  select(mean) |>
+  rename(mean_rmse = mean)
+
+other_metrics2 <- map_df(tiktok_fit_rs2$.extracts, ~ .x[[1]][[1]]) |>
+  summarise(mean_adj_rsq = mean(adj.r.squared, na.rm = TRUE), 
+            mean_aic = mean(AIC, na.rm = TRUE), 
+            mean_bic = mean(BIC, na.rm = TRUE))
+
+combined_metrics2 <- bind_cols(rmse2, other_metrics2)
+combined_metrics2
+```
+
+The difference between the model's evaluations aren't large. Model 1 has a higher RMSE, while it has a lower AIC and BIC, and a higher adjusted r-squared. In this case, we would consider model 2 (the model without plays) to be a better model, because it has a lower RMSE, which is gathered from the assessment set and is used to assess prediction. The goal of our model is to predict followers, so we want to choose the model with better predictive power (Model 2). Therefore, we remove plays from our model.
+
+### Determining whether video_length_bin are necessary
+
+We saw from our initial tidy table that the p-values associated with video length bins are high, indicating that the variables aren't significant. Because of this, we can once again perform cross validation to test how a model without video_length compares to our current model (Model 1):
+
+Model 3 (without plays and video length):
+
+```{r}
+set.seed(29)
+folds <- vfold_cv(tiktok_train, v = 5)
+# cv against previously chosen model and model without video length
+tiktok_recipe3 <- recipe(followers ~ ., data = train_transformed) |>
+  step_rm(plays) |>
+  step_rm(video_length)
+
+tiktok_wflow3 <- workflow() |>
+  add_recipe(tiktok_recipe3) |>
+  add_model(linear_reg() |>
+            set_engine("lm"))
+
+tiktok_fit_rs3 <- tiktok_wflow3 |>
+  fit_resamples(
+    resamples = folds, 
+    control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
+  )
+
+```
+
+```{r}
+rmse3 <- collect_metrics(tiktok_fit_rs3, summarize = TRUE) |>
+  filter(.metric == "rmse") |>
+  select(mean) |>
+  rename(mean_rmse = mean)
+
+other_metrics3 <- map_df(tiktok_fit_rs3$.extracts, ~ .x[[1]][[1]]) |>
+  summarise(mean_adj_rsq = mean(adj.r.squared, na.rm = TRUE), 
+            mean_aic = mean(AIC, na.rm = TRUE), 
+            mean_bic = mean(BIC, na.rm = TRUE))
+
+combined_metrics3 <- bind_cols(rmse3, other_metrics3)
+combined_metrics3
+```
+
+We can see that when we remove video_length, RMSE is slightly higher than it was for Model 2, while AIC remains about the same and BIC slightly decreases. We also see that adjusted r-squared remains about the same. Therefore, despite BIC slightly decreasing, we prefer the model with a lower RMSE (better prediction), so we choose to remove video_length.
+
+### Determining whether interaction terms are needed
+
+We used domain knowledge to hypothesize several potential interaction variables. Our first idea was connecting average plays and likes (or other engagement metrics) to detect bot activities. Our second idea was connecting likes and total number of videos to evaluate the relationship between user engagement and activity. Our third idea was connecting average likes and shares to evaluate the viewer's reason for shares (to detect potential ridiculing sentiment assuming that they would not like the video they feel negatively towards). All interaction terms had low p-values, but the first and third interaction terms showed signs of multicollinearity by increasing the p-value of other variables in the model.
+
+This is a table with the second interaction term:
+
+```{r}
+model_with_interaction <- linear_reg() |>
+  set_engine("lm") |>
+  fit(followers ~ likes + plays + shares + comments + total_videos + likes*total_videos, data = train_transformed)
+
+model_with_interaction |>
+  tidy(conf.int = TRUE) |>
+  kable(digits = 3)
+```
+
+We can see from the p-values in the table that all variables seem to be statistically significant with the interaction term. Therefore, those terms should certainly be in our model. The new p-value for comments is not less than our significance level of 0.05, but it is still low. We can perform CV on a model with likes:total_videos.
+
+Model 4 (with likes:total_videos interaction terms):
+
+```{r}
+tiktok_recipe4 <- recipe(followers ~ ., data = train_transformed) |>
+  step_interact(~ likes:total_videos)
+
+tiktok_wflow4 <- workflow() |>
+  add_recipe(tiktok_recipe4) |>
+  add_model(linear_reg() |>
+            set_engine("lm"))
+
+tiktok_fit_rs4 <- tiktok_wflow4 |>
+  fit_resamples(
+    resamples = folds, 
+    control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
+  )
+
+rmse4 <- collect_metrics(tiktok_fit_rs4, summarize = TRUE) |>
+  filter(.metric == "rmse") |>
+  select(mean) |>
+  rename(mean_rmse = mean)
+
+other_metrics4 <- map_df(tiktok_fit_rs4$.extracts, ~ .x[[1]][[1]]) |>
+  summarise(mean_adj_rsq = mean(adj.r.squared, na.rm = TRUE), 
+            mean_aic = mean(AIC, na.rm = TRUE), 
+            mean_bic = mean(BIC, na.rm = TRUE))
+
+combined_metrics4 <- bind_cols(rmse4, other_metrics4)
+combined_metrics4
+```
+
+The mean RMSE (0.3282339) is barely smaller than that of model3, one without likes and video_length_bin (0.3389576). However given we are have included more terms, our adj r-square shows a clear increase (0.26883 to 0.3157319), BIC shows a slight increase (105.9608 to 108.3907), and AIC shows a slight decrease (88.243 to 81.8137). Because the increase in our adj r-square is very significant, AIC decreases, and BIC only increases by a small amount, we choose the new model, model 4.
+
+#### Conditions for Inference
+
+Residual Plots for Followers vs. Predictors:
 
 ```{r}
 create_individual_residual_plot <- function(predictor, data) {
@@ -183,57 +432,12 @@ wrap_elements(final_plot) +
     plot.tag = element_text(size = rel(.8), angle = 90, face = "bold"),
     plot.tag.position = "left"
   )
-
 ```
 
-All our predictors variables violate constant variance, because there's a clear outward fan spread for likes, shares, comments, plays and video_length, and an inward spread for total_videos. As a result, we log transformed our response variable of followers.
-
-Because Tiktok videos are commonly divided into 15-second, 1 minute, or 3 minute videos, it also makes sense to process average bin video length into levels, corresponding to "short", "medium" and "long." Now, we can search for interactions effects video_length might have with other predictors such as likes. Therefore, we'll add step_discretize() into the recipe for video_length. We also mean-centered all our numerical variables to make our intercept meaningful and we scaled comments to hundreds, likes to millions, plays to tens of millions, shares to hundreds, and total_videos to units, in order to make these predictors more interpretable.
+We can see from the residual plots that there doesn't appear to be any non-random patterns that violate linearity. So, we can conclude that the linearity condition is satisfied. However, there does appear to be a clear outward fanning spread for each each predictor, meaning that constant variance is not satisfied. To solve this, we can log-transform our response variable (followers) and see if the fanning is minimized:
 
 ```{r}
-transformed_tiktok_users <- tiktok |>
-  dplyr::group_by(user_name) |>
-  dplyr::summarize(
-    likes = mean(n_likes),
-    shares = mean(n_shares),
-    comments = mean(n_comments),
-    plays = mean(n_plays),
-    followers = mean(n_followers),
-    video_length = mean(video_length),
-    total_videos = mean(n_total_vids)
-  ) |>
-  mutate(
-    followers = log(followers),
-    comments = comments / 1000,         # Scale comments to hundreds
-    likes = likes / 1000000,            # Scale likes to millions
-    plays = plays / 1000000,            # Scale plays to tens of millions
-    shares = shares / 1000,             # Scale shares to hundreds
-    total_videos = total_videos / 1000  # Scale total_videos to units
-  ) |>
-  select(-user_name)
 
-set.seed(29)
-
-tiktok_split <- initial_split(transformed_tiktok_users, prop = 0.7)
-tiktok_train <- training(tiktok_split)
-tiktok_test  <- testing(tiktok_split)
-```
-
-```{r}
-tiktok_recipe <- recipe(followers ~ ., data = tiktok_train) |>
-  step_center(all_numeric_predictors()) |>
-  step_dummy(all_nominal_predictors()) |>
-  step_discretize(video_length, options = list(cuts = 3)) 
-  
-prepped_tiktok_recipe_df <- prep(tiktok_recipe, training = transformed_tiktok_users)
-dataset_transformed <- bake(prepped_tiktok_recipe_df, new_data = transformed_tiktok_users)
-
-prepped_tiktok_recipe <- prep(tiktok_recipe, training = tiktok_train)
-train_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_train)
-test_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_test)
-```
-
-```{r}
 predictor_vars <- c("likes", "shares", "comments", "plays", "total_videos")  
 
 individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plot(.x, dataset_transformed))
@@ -265,9 +469,11 @@ wrap_elements(final_plot) +
   )
 ```
 
-Fanning is a lot less noticeable now. The residual plots don't seem to suggest any underlying patterns. As such, we conclude the predictors satisfy linearity and constant variance. We can also assume independence is met. Each of the videos are by individual creators, therefore the videos are independent of each other.
+Fanning is a lot less noticeable now. The residual plots don't seem to suggest any underlying patterns. As such, we conclude the predictors satisfy constant variance.
 
-We continue with normality.
+When assessing independence, we know that each of the videos are by individual creators, therefore the videos are independent of each other. There is no reason to believe that one TikTok user's video performance would directly affect another's.
+
+Finally, we assess normality.
 
 ```{r}
 create_individual_residual_histogram <- function(predictor, data) {
@@ -324,240 +530,19 @@ wrap_elements(final_hist_plot) +
 
 Normality seems to be satisfied for each of the predictors except total_videos and possibly shares. However, even though total_videos and shares do not have completely normal distributions, because we have more than 30 observations in the dataset, we can conclude that normality is satisfied regardless of the distribution.
 
-We use the transformed dataset to split our data into testing and training. The transformed dataset also includes our log response, log 'followers'. We also mean-centered all our predictor variables to make our intercept meaningful.
+## Results
 
-#### **Methodology**
-
-In honing our final model, we used the transformed dataset to reduce multicollinearity and conduct a cross-validation test on tiktok_train.
-
-#### Detecting Multicollinearity & Model Comparison
-
-Upon conducting a VIF test, we found that likes and plays had the highest vif values (11.614 and 9.82 respectively).
+After removing likes and video_length, **and adding our interaction term??**, we arrive at our final model:
 
 ```{r}
-tiktok_users_fit <- linear_reg() |>
+final_fit <- linear_reg() |>
   set_engine("lm")|>
-  fit(followers ~ likes + shares + comments + plays + total_videos, data=train_transformed)
+  fit(followers ~ shares + comments + plays + total_videos + likes*total_videos, data=train_transformed)
 
-vif(tiktok_users_fit$fit)
-```
-
-Therefore, we constructed two linear regression model fitting variable 'followers' with predictor variables 'likes', 'shares', 'comments', 'plays', 'video_length_bin', and 'total_videos.' Our first model m1 had all the previously indicated predictor variables excluding variable 'likes' while our second model m2 had those predictor variables excluding variable 'plays.' We compared these two models because meaning they have the highest likelihood for multicollinearity.
-
-```{r}
-m1 <- linear_reg() |>
-  set_engine("lm") |>
-  fit(followers ~ . - likes, data = train_transformed)
-  
-m1 |>
+final_fit |>
   tidy() |>
-  kable(digits = 3)
+  kable(digits = 4)
 ```
-
-```{r}
-m2 <- linear_reg() |>
-  set_engine("lm") |>
-  fit(followers ~ . - plays, data = train_transformed)
-  
-m2 |>
-  tidy() |>
-  kable(digits = 3)
-```
-
-**Model Comparison with 5-fold CV**
-
-To determine which between m1 and m2, we performed 5-fold cross validation and extract the resulting BIC and AIC scores along with additional evaluations.
-
-```{r}
-
-set.seed(29)
-folds <- vfold_cv(tiktok_train, v = 5)
-
-calc_model_stats <- function(x) {
-  glance(extract_fit_parsnip(x)) |>
-    select(adj.r.squared, AIC, BIC)
-}
-
-tiktok_recipe1 <- recipe(followers ~ ., data = tiktok_train) |>
-  step_rm(likes) |>
-  step_discretize(video_length, options = list(cuts = 3)) |>
-  step_center(all_numeric_predictors(), -all_outcomes()) |>
-  step_dummy(all_nominal_predictors(), -all_outcomes()) 
-
-tiktok_recipe2 <- recipe(followers ~ ., data = tiktok_train) |>
-  step_rm(plays) |>
-  step_discretize(video_length, options = list(cuts = 3)) |>
-  step_center(all_numeric_predictors(), -all_outcomes()) |>
-  step_dummy(all_nominal_predictors(), -all_outcomes())
-
-tiktok_wflow1 <- workflow() |>
-  add_recipe(tiktok_recipe1) |>
-  add_model(linear_reg() |>
-            set_engine("lm"))
-
-tiktok_wflow2 <- workflow() |>
-  add_recipe(tiktok_recipe2) |>
-  add_model(linear_reg() |>
-            set_engine("lm"))
-
-tiktok_fit_rs1 <- tiktok_wflow1 |>
-  fit_resamples(
-    resamples = folds, 
-    control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
-  )
-
-tiktok_fit_rs2 <- tiktok_wflow2 |>
-  fit_resamples(
-    resamples = folds, 
-    control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
-  )
-```
-
-Model 1: (without likes):
-
-RMSE:
-
-```{r}
-# extract RMSE
-rmse <- collect_metrics(tiktok_fit_rs1, summarize = TRUE) |>
-  filter(.metric == "rmse") |>
-  select(mean) |>
-  rename(mean_rmse = mean)
-
-# extract adjusted R-squared, AIC, and BIC
-other_metrics <- map_df(tiktok_fit_rs1$.extracts, ~ .x[[1]][[1]]) |>
-  summarise(mean_adj_rsq = mean(adj.r.squared, na.rm = TRUE), 
-            mean_aic = mean(AIC, na.rm = TRUE), 
-            mean_bic = mean(BIC, na.rm = TRUE))
-
-combined_metrics <- bind_cols(rmse, other_metrics) 
-combined_metrics
-```
-
-Model 2 (without plays):
-
-RMSE:
-
-```{r}
-# do the same for model 2
-rmse2 <- collect_metrics(tiktok_fit_rs2, summarize = TRUE) |>
-  filter(.metric == "rmse") |>
-  select(mean) |>
-  rename(mean_rmse = mean)
-
-other_metrics2 <- map_df(tiktok_fit_rs2$.extracts, ~ .x[[1]][[1]]) |>
-  summarise(mean_adj_rsq = mean(adj.r.squared, na.rm = TRUE), 
-            mean_aic = mean(AIC, na.rm = TRUE), 
-            mean_bic = mean(BIC, na.rm = TRUE))
-
-combined_metrics2 <- bind_cols(rmse2, other_metrics2)
-combined_metrics2
-```
-
-The difference between the model's evaluations aren't large. Model 1 has a slightly higher RMSE, but it has a lower AIC and BIC, and a higher adjusted r-squared. In this case, we would consider model 1 (the model without likes) to be a better model since it's able to explain more of the variance while also maintaining lower AIC and BIC scores. Therefore, we choose to remove likes and leave plays in the model .
-
-### Determining whether video_length_bin are necessary
-
-We saw from our tidy table that the p-values associated with video length bins are high, indicating that the variables aren't significant. Because of this, we can do once again do cross validation to test to see how a model without video_length and likes performs against m1 (our chosen model without likes but contains video length).
-
-We can see from our previous tidy table that the p-values associated with the video length bins are high, indicating that the variables aren't significant. Because of this, we can do a cross validation test to see how a model without video_length performs.
-
-Model 3 (without video length and likes):
-
-```{r}
-set.seed(29)
-folds <- vfold_cv(tiktok_train, v = 5)
-# cv against previously chosen model and model without video length
-tiktok_recipe3 <- recipe(followers ~ ., data = tiktok_train) |>
-  step_rm(likes) |>
-  step_rm(video_length) |>
-  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
-  step_center(all_numeric_predictors(), -all_outcomes())
-
-tiktok_wflow3 <- workflow() |>
-  add_recipe(tiktok_recipe3) |>
-  add_model(linear_reg() |>
-            set_engine("lm"))
-
-tiktok_fit_rs3 <- tiktok_wflow3 |>
-  fit_resamples(
-    resamples = folds, 
-    control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
-  )
-
-```
-
-```{r}
-rmse3 <- collect_metrics(tiktok_fit_rs3, summarize = TRUE) |>
-  filter(.metric == "rmse") |>
-  select(mean) |>
-  rename(mean_rmse = mean)
-
-other_metrics3 <- map_df(tiktok_fit_rs3$.extracts, ~ .x[[1]][[1]]) |>
-  summarise(mean_adj_rsq = mean(adj.r.squared, na.rm = TRUE), 
-            mean_aic = mean(AIC, na.rm = TRUE), 
-            mean_bic = mean(BIC, na.rm = TRUE))
-
-combined_metrics3 <- bind_cols(rmse3, other_metrics3)
-combined_metrics3
-```
-
-We can see that when we remove video_length, it makes sense that AIC and BIC both decrease. We also see that adjusted r-squared only slightly increased by approximately 0.002. Therefore, we prefer the parsimonious model without video length bins.
-
-### Determining whether interaction terms are needed
-
-We used domain knowledge to hypothesize several potential interaction variables. Our first idea was connecting average plays and likes (or other engagement metrics) to detect bot activities. Our second idea was connecting likes and total number of videos to evaluate the relationship between user engagement and activity. Our third idea was connecting average likes and shares to evaluate the viewer's reason for shares (to detect potential ridiculing sentiment assuming that they would not like the video they feel negatively towards). All interaction terms had low p-values, but the first and third interaction terms showed signs of multicollinearity by increasing the p-value of other variables in the model.
-
-This is a table with the second interaction term:
-
-```{r}
-model_with_interaction <- linear_reg() |>
-  set_engine("lm") |>
-  fit(followers ~ likes + plays + shares + comments + total_videos + likes*total_videos, data = train_transformed)
-
-model_with_interaction |>
-  tidy(conf.int = TRUE) |>
-  kable(digits = 3)
-```
-
-We can see from the p-values in the table that all variables seem to be statistically significant with the interaction term. Therefore, those terms should certainly be in our model. The new p-value for comments is not less than our significance level of 0.05, but it is still low. We can perform CV on a model with likes:total_videos.
-
-Model 4 (with likes:total_videos interaction terms):
-
-```{r}
-tiktok_recipe4 <- recipe(followers ~ ., data = tiktok_train) |>
-  step_interact(~ likes:total_videos) |>
-  step_center(all_numeric_predictors(), -all_outcomes()) |>
-  step_dummy(all_nominal_predictors(), -all_outcomes())
-
-tiktok_wflow4 <- workflow() |>
-  add_recipe(tiktok_recipe4) |>
-  add_model(linear_reg() |>
-            set_engine("lm"))
-
-tiktok_fit_rs4 <- tiktok_wflow4 |>
-  fit_resamples(
-    resamples = folds, 
-    control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
-  )
-
-rmse4 <- collect_metrics(tiktok_fit_rs4, summarize = TRUE) |>
-  filter(.metric == "rmse") |>
-  select(mean) |>
-  rename(mean_rmse = mean)
-
-other_metrics4 <- map_df(tiktok_fit_rs4$.extracts, ~ .x[[1]][[1]]) |>
-  summarise(mean_adj_rsq = mean(adj.r.squared, na.rm = TRUE), 
-            mean_aic = mean(AIC, na.rm = TRUE), 
-            mean_bic = mean(BIC, na.rm = TRUE))
-
-combined_metrics4 <- bind_cols(rmse4, other_metrics4)
-combined_metrics4
-```
-
-The mean RMSE (0.3282339) is barely smaller than that of model3, one without likes and video_length_bin (0.3389576). However given we are have included more terms, our adj r-square shows a clear increase (0.26883 to 0.3157319), BIC shows a slight increase (105.9608 to 108.3907), and AIC shows a slight decrease (88.243 to 81.8137). Because the increase in our adj r-square is very significant, AIC decreases, and BIC only increases by a small amount, we choose the new model, model 4.
-
-#### Results
 
 Model 4 performance on test:
 
@@ -596,7 +581,7 @@ There are several terms that are significant when determining the number of foll
 
 When observing the video length bin variable, the middle video length bin (2) has statistically significant difference from the other two video length bins, as well as a statistically significant interaction term with total videos. This shows that not only do medium length videos generate the most followers, but medium length videos combined with a higher number of total videos significantly increase follower count as well. This is certainly an interesting finding from our analysis, as it isn't the most expected result.
 
-#### Conclusion
+## Discussion + Conclusion
 
 We originally decided to look at TikTok's data and how follower count (a huge driver of engagement) is impacted by other aspects of a user's account. We learned that it is extremely difficult to correctly predict follower count, given our model only captures 36.2% of the variability in the dataset. More complex models seemed to only worsen performance, and we chose to prioritize parsimony for this reason - however, even the simple models did not predict well.
 
