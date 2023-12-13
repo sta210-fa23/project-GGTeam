@@ -131,7 +131,7 @@ ggplot(long_train, aes(x = value)) +
 
 ```
 
-Judging by the number of outliers in our dataset, we are interested in knowing how this might influence our model conditions. Hence, we have the following residual plots for each of them.
+Judging by the number of outliers in our dataset, we are interested in knowing how this might influence our model conditions, specifically constant variance. Constant variance could be violated since we aren't working with a response that's looks normally distributed. Hence, we have the following residual plots for each of the predictor variables we are interested in. The following plots are generated from creating individual linear regression models with just the predictor variable and average follower response.
 
 ```{r}
 create_individual_residual_plot <- function(predictor, data) {
@@ -188,7 +188,7 @@ wrap_elements(final_plot) +
 
 All our predictors variables violate constant variance, because there's a clear outward fan spread for likes, shares, comments, plays and video_length, and an inward spread for total_videos. As a result, we log transformed our response variable of followers.
 
-Because Tiktok videos are commonly divided into 15-second, 1 minute, or 3 minute videos, it also makes sense to process average bin video length into levels, corresponding to "short", "medium" and "long." Now, we can search for interactions effects video_length might have with other predictors such as likes. Therefore, we'll add step_discretize() into the recipe for video_length. We also mean-centered all our numerical variables to make our intercept meaningful and normalized them to reduce standardize them and reduce multicollinearity produced by higher-order terms.
+Because Tiktok videos are commonly divided into 15-second, 1 minute, or 3 minute videos, it also makes sense to process average bin video length into levels, corresponding to "short", "medium" and "long." Now, we can search for interactions effects video_length might have with other predictors such as likes. Therefore, we'll add step_discretize() into the recipe for video_length. We also mean-centered all our numerical variables to make our intercept meaningful and we scaled comments to hundreds, likes to millions, plays to tens of millions, shares to hundreds, and total_videos to units, in order to make these predictors more interpretable.
 
 ```{r}
 transformed_tiktok_users <- tiktok |>
@@ -204,6 +204,11 @@ transformed_tiktok_users <- tiktok |>
   ) |>
   mutate(
     followers = log(followers),
+    comments = comments / 1000,         # Scale comments to hundreds
+    likes = likes / 1000000,            # Scale likes to millions
+    plays = plays / 1000000,            # Scale plays to tens of millions
+    shares = shares / 1000,             # Scale shares to hundreds
+    total_videos = total_videos / 1000  # Scale total_videos to units
   ) |>
   select(-user_name)
 
@@ -218,8 +223,10 @@ tiktok_test  <- testing(tiktok_split)
 tiktok_recipe <- recipe(followers ~ ., data = tiktok_train) |>
   step_center(all_numeric_predictors()) |>
   step_dummy(all_nominal_predictors()) |>
-  step_discretize(video_length, options = list(cuts = 3)) |>
-  step_normalize(all_numeric_predictors())
+  step_discretize(video_length, options = list(cuts = 3)) 
+  
+prepped_tiktok_recipe_df <- prep(tiktok_recipe, training = transformed_tiktok_users)
+dataset_transformed <- bake(prepped_tiktok_recipe_df, new_data = transformed_tiktok_users)
 
 prepped_tiktok_recipe <- prep(tiktok_recipe, training = tiktok_train)
 train_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_train)
@@ -229,7 +236,7 @@ test_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_test)
 ```{r}
 predictor_vars <- c("likes", "shares", "comments", "plays", "total_videos")  
 
-individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plot(.x, train_transformed))
+individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plot(.x, dataset_transformed))
 
 combined_residual_plot <- wrap_plots(individual_residual_plots, ncol = 2)
 
@@ -258,9 +265,7 @@ wrap_elements(final_plot) +
   )
 ```
 
-Fanning is a lot less noticeable now. The residual plots don't seem to suggest any underlying patterns. As such, we conclude the predictors satisfy linearity and constant variance.
-
-We can also assume independence is met. Each of the videos are by individual creators, therefore the videos are independent of each other.
+Fanning is a lot less noticeable now. The residual plots don't seem to suggest any underlying patterns. As such, we conclude the predictors satisfy linearity and constant variance. We can also assume independence is met. Each of the videos are by individual creators, therefore the videos are independent of each other.
 
 We continue with normality.
 
@@ -319,7 +324,7 @@ wrap_elements(final_hist_plot) +
 
 Normality seems to be satisfied for each of the predictors except total_videos and possibly shares. However, even though total_videos and shares do not have completely normal distributions, because we have more than 30 observations in the dataset, we can conclude that normality is satisfied regardless of the distribution.
 
-We use the transformed dataset to split our data into testing and training. Before constructing our model, we chose to log transform our response variable 'followers' because, prior to the transformation, the variables were not to scale and returned coefficients of 0.000. We also mean-centered all our predictor variables to make our intercept meaningful.
+We use the transformed dataset to split our data into testing and training. The transformed dataset also includes our log response, log 'followers'. We also mean-centered all our predictor variables to make our intercept meaningful.
 
 #### **Methodology**
 
@@ -377,15 +382,13 @@ tiktok_recipe1 <- recipe(followers ~ ., data = tiktok_train) |>
   step_rm(likes) |>
   step_discretize(video_length, options = list(cuts = 3)) |>
   step_center(all_numeric_predictors(), -all_outcomes()) |>
-  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
-  step_normalize(all_numeric_predictors())
+  step_dummy(all_nominal_predictors(), -all_outcomes()) 
 
 tiktok_recipe2 <- recipe(followers ~ ., data = tiktok_train) |>
   step_rm(plays) |>
   step_discretize(video_length, options = list(cuts = 3)) |>
   step_center(all_numeric_predictors(), -all_outcomes()) |>
-  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
-  step_normalize(all_numeric_predictors())
+  step_dummy(all_nominal_predictors(), -all_outcomes())
 
 tiktok_wflow1 <- workflow() |>
   add_recipe(tiktok_recipe1) |>
@@ -469,8 +472,7 @@ tiktok_recipe3 <- recipe(followers ~ ., data = tiktok_train) |>
   step_rm(likes) |>
   step_rm(video_length) |>
   step_dummy(all_nominal_predictors(), -all_outcomes()) |>
-  step_center(all_numeric_predictors(), -all_outcomes()) |>
-  step_normalize(all_numeric_predictors())
+  step_center(all_numeric_predictors(), -all_outcomes())
 
 tiktok_wflow3 <- workflow() |>
   add_recipe(tiktok_recipe3) |>
@@ -526,8 +528,7 @@ Model 4 (with likes:total_videos interaction terms):
 tiktok_recipe4 <- recipe(followers ~ ., data = tiktok_train) |>
   step_interact(~ likes:total_videos) |>
   step_center(all_numeric_predictors(), -all_outcomes()) |>
-  step_dummy(all_nominal_predictors(), -all_outcomes()) |>
-  step_normalize(all_numeric_predictors())
+  step_dummy(all_nominal_predictors(), -all_outcomes())
 
 tiktok_wflow4 <- workflow() |>
   add_recipe(tiktok_recipe4) |>
@@ -602,6 +603,28 @@ We originally decided to look at TikTok's data and how follower count (a huge dr
 Our dataset was extremely difficult to work with, given that it did not meet the conditions for linear regression (linearity and constant variance), and contained multicollinearity. The variables were also extremely large, and needed to be scaled down to have meaningful coefficients - which made late interpretation significantly more difficult. A more complex model was likely needed, that was beyond the scope of our knowledge, given how poorly our model performed at the end. There also may be underlying relationships between follower count, and other portions of the TikTok algorithm that are not contained in the dataset, which our model might have also failed to capture; in the real world, users have reported that TikTok enforces policies differently from user-to-user, and uses different algorithms from region to region.
 
 In order to improve our analysis, it would be helpful to comb TikTok for a dataset that potentially contains more variables. Three potential options we considered included: finding a meaningful way to capture hashtags (which may require manually looking at TikTok videos), finding a meaningful way to capture whether a user typically utilizes trending music, and using the demographic statistics for users (to account for human decisionmaking).
+
+### Appendix
+
+First 5 data points before transformation
+
+```{r}
+head(tiktok)
+```
+
+After transformation
+
+```{r}
+head(tiktok_users, 5)
+```
+
+Split results:
+
+\<a name="appendix"\>\</a\>
+
+```{r}
+tiktok_split
+```
 
 ::: callout-important
 Before you submit, make sure your code chunks are turned off with `echo: false` and there are no warnings or messages with `warning: false` and `message: false` in the YAML.
