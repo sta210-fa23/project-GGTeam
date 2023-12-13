@@ -386,7 +386,7 @@ We can see that RMSE significantly decreased from about 6.6 million in Model 2 t
 
 #### Conditions for Inference
 
-Residual Plots for Followers vs. Predictors:
+In assessing linearity and constant variance, it is important to look at Residual vs. Fitted plots for quantitative predictor variables (in our current model that's likes, shares, and total videos) and look for patterns and fanning:
 
 ```{r}
 create_individual_residual_plot <- function(predictor, data) {
@@ -411,12 +411,12 @@ create_individual_residual_plot <- function(predictor, data) {
 }
 
 predictor_vars <- c("likes", "shares", "total_videos")
-individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plot(.x, tiktok_users))
+individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plot(.x, dataset_transformed))
 
 combined_plots <- reduce(individual_residual_plots, `+`)
 
 final_plot <- combined_plots + 
-  plot_layout(ncol = 3, nrow = 2) + 
+  plot_layout(ncol = 3, nrow = 1) + 
   plot_annotation(
     title = "Residuals vs. Fitted",
     caption = "Fitted Values",
@@ -440,18 +440,21 @@ wrap_elements(final_plot) +
   )
 ```
 
-We can see from the residual plots that there doesn't appear to be any non-random patterns that violate linearity. So, we can conclude that the linearity condition is satisfied. However, there does appear to be a clear outward fanning spread for each each predictor, meaning that constant variance is not satisfied. To solve this, we can log-transform our response variable (followers) and see if the fanning is minimized:
+We can see from the residual plots that there doesn't appear to be any non-random patterns that violate linearity. Therefore, we can conclude that the linearity condition is satisfied. However, there does appear to be a clear outward fanning spread for each each predictor, meaning that constant variance is not satisfied. To solve this, we can log-transform our response variable (followers) and see if the fanning is minimized:
 
 ```{r}
 
-predictor_vars <- c("likes", "shares", "comments", "plays", "total_videos")  
+train_transformed <- train_transformed |>
+  mutate(followers = log(followers))
 
-individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plot(.x, dataset_transformed))
+predictor_vars <- c("likes", "shares","total_videos")  
+
+individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plot(.x, train_transformed))
 
 combined_residual_plot <- wrap_plots(individual_residual_plots, ncol = 2)
 
 final_plot <- combined_residual_plot + 
-  plot_layout(ncol = 3, nrow = 2) + 
+  plot_layout(ncol = 3, nrow = 1) + 
   plot_annotation(
     title = "Residuals vs. Fitted",
     caption = "Fitted Values",
@@ -475,11 +478,11 @@ wrap_elements(final_plot) +
   )
 ```
 
-Fanning is a lot less noticeable now. The residual plots don't seem to suggest any underlying patterns. As such, we conclude the predictors satisfy constant variance.
+We can see that after log-transorming followers, the scale of our y axis decreases significantly. Additionally, there is no clear outward fanning, but rahter a lower density of points as you move to higher values on the x-axis As such, we conclude the predictors satisfy constant variance.
 
-When assessing independence, we know that each of the videos are by individual creators, therefore the videos are independent of each other. There is no reason to believe that one TikTok user's video performance would directly affect another's.
+When assessing independence, we know that each of the videos are by individual creators, therefore the videos were produced independently of each other. There is no reason to believe that one TikTok user's video performance would directly affect another's.
 
-Finally, we assess normality.
+Finally, we assess normality by looking at the residual histograms for each predictor:
 
 ```{r}
 create_individual_residual_histogram <- function(predictor, data) {
@@ -503,7 +506,7 @@ create_individual_residual_histogram <- function(predictor, data) {
     )
 }
 
-predictor_vars <- c("likes", "shares", "comments", "plays", "total_videos")
+predictor_vars <- c("likes", "shares", "total_videos", "video_length")
 
 individual_residual_histograms <- map(predictor_vars, ~create_individual_residual_histogram(.x, tiktok_users))
 
