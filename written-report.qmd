@@ -145,12 +145,11 @@ transformed_tiktok_users <- tiktok |>
   ) |>
   mutate(
 #    followers = log(followers),
- #   comments = comments / 1000,         # Scale comments to hundreds
-#    likes = likes / 1000000,            # Scale likes to millions
-#    plays = plays / 1000000,            # Scale plays to tens of millions
-#    shares = shares / 1000,             # Scale shares to hundreds
-#    total_videos = total_videos / 1000  # Scale total_videos to units
-    #we scaled comments to hundreds, likes to millions, plays to tens of millions, shares to hundreds, and total_videos to units in order to make the coefficients of these predictors more interpretable
+    comments = comments / 1000,         # Scale comments to hundreds
+    likes = likes / 1000000,            # Scale likes to millions
+    plays = plays / 1000000,            # Scale plays to tens of millions
+    shares = shares / 1000,             # Scale shares to hundreds
+    total_videos = total_videos / 1000  # Scale total_videos to units
   ) |>
   select(-user_name)
 
@@ -177,7 +176,7 @@ test_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_test)
 
 ## **Methodology**
 
-We want to use multiple linear regression to predict the number of followers a user has. We choose multiple linear regression rather than logistic regression because followers is a quantiative response variable. We start off with an initial model containing the predictors likes, shares, comments, plays, video_length (factor with 3 levels), total_videos, and followers, our response variable. Because Tiktok videos are commonly divided into 15-second, 1 minute, or 3 minute videos, we bin average video length into 3 levels, corresponding to "short", "medium" and "long." We also mean-center all our numerical variables to make our intercept meaningful. Here is a tidy table of our initial model:
+We want to use multiple linear regression to predict the number of followers a user has. We choose multiple linear regression rather than logistic regression because followers is a quantiative response variable. We start off with an initial model containing the predictors likes, shares, comments, plays, video_length (factor with 3 levels), total_videos, and followers, our response variable. Because Tiktok videos are commonly divided into 15-second, 1 minute, or 3 minute videos, we bin average video length into 3 levels, corresponding to "short", "medium" and "long." We also mean-center all our numerical variables to make our intercept meaningful, and we scale comments to hundreds, likes to millions, plays to tens of millions, shares to hundreds, and total_videos to units in order to make the coefficients of these predictors more interpretable. Here is a tidy table of our initial model:
 
 ```{r initial-model}
 
@@ -537,36 +536,35 @@ wrap_elements(final_hist_plot) +
   )
 ```
 
-Normality seems to be satisfied for each of the predictors except total_videos and possibly shares. However, even though total_videos and shares do not have completely normal distributions, because we have more than 30 observations in the dataset, we can conclude that normality is satisfied regardless of the distribution.
+Normality doesn't seem to be satisfied for each of the predictors, however, because we have more than 30 observations in the dataset, we can conclude that normality is satisfied regardless of the distribution.
 
 ## Results
 
-After removing likes and video_length, **and adding our interaction term??**, we arrive at our final model:
+After removing plays and comments and adding interaction terms between video_length and both likes and shares, we arrive at our final model:
 
 ```{r}
 final_fit <- linear_reg() |>
   set_engine("lm")|>
-  fit(followers ~ shares + comments + plays + total_videos + likes*total_videos, data=train_transformed)
+  fit(followers ~ shares + likes + total_videos + likes*video_length + shares*video_length, data=train_transformed)
 
 final_fit |>
   tidy() |>
   kable(digits = 4)
 ```
 
-Model 4 performance on test:
+Final Model performance on testing set:
 
 ```{r}
-tiktok_fit4 <- tiktok_wflow4 |>
-  fit(data = tiktok_train)
 # predict on test
-tiktok_test_pred4 <- predict(tiktok_fit4, tiktok_test) |>
-  bind_cols(tiktok_test)
+tiktok_test_pred4 <- predict(final_fit, test_transformed) |>
+  bind_cols(test_transformed)
   
 rmse_result4 <- rmse(tiktok_test_pred4, truth = followers, estimate = .pred)
 rsq_result4 <- rsq(tiktok_test_pred4, truth = followers, estimate = .pred)
 
 combined_metrics4 <- bind_rows(rmse_result4, rsq_result4)
-combined_metrics4
+combined_metrics4 |>
+  kable(digits = 3)
 ```
 
 ```{r}
