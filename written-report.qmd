@@ -144,7 +144,7 @@ transformed_tiktok_users <- tiktok |>
     total_videos = mean(n_total_vids)
   ) |>
   mutate(
-    followers = log(followers),
+#    followers = log(followers),
  #   comments = comments / 1000,         # Scale comments to hundreds
 #    likes = likes / 1000000,            # Scale likes to millions
 #    plays = plays / 1000000,            # Scale plays to tens of millions
@@ -285,7 +285,7 @@ The difference between the model's evaluations aren't large. Model 1 has a highe
 
 ### Determining whether video_length_bin are necessary
 
-We saw from our initial tidy table that the p-values associated with video length bins are high, indicating that the variables aren't significant. Because of this, we can once again perform cross validation to test how a model without video_length compares to our current model (Model 1):
+We saw from our initial tidy table that the p-values associated with video length bins are high, indicating that the variables may not be significant. Because of this, we can once again perform cross validation to test how a model without video_length compares to our current model (Model 1):
 
 Model 3 (without plays and video length):
 
@@ -325,31 +325,34 @@ combined_metrics3 <- bind_cols(rmse3, other_metrics3)
 combined_metrics3
 ```
 
-We can see that when we remove video_length, RMSE is slightly higher than it was for Model 2, while AIC remains about the same and BIC slightly decreases. We also see that adjusted r-squared remains about the same. Therefore, despite BIC slightly decreasing, we prefer the model with a lower RMSE (better prediction), so we choose to remove video_length.
+We can see that when we remove video_length, RMSE is slightly higher than it was for Model 2, while AIC remains about the same and BIC slightly decreases. We also see that adjusted r-squared remains about the same. Therefore, despite BIC slightly decreasing, we prefer the model with a lower RMSE (better prediction), so we don't want to remove video_length from our model.
 
 ### Determining whether interaction terms are needed
 
-We used domain knowledge to hypothesize several potential interaction variables. Our first idea was connecting average plays and likes (or other engagement metrics) to detect bot activities. Our second idea was connecting likes and total number of videos to evaluate the relationship between user engagement and activity. Our third idea was connecting average likes and shares to evaluate the viewer's reason for shares (to detect potential ridiculing sentiment assuming that they would not like the video they feel negatively towards). All interaction terms had low p-values, but the first and third interaction terms showed signs of multicollinearity by increasing the p-value of other variables in the model.
-
-This is a table with the second interaction term:
+Our only categorical variable in our model is video_length. Therefore, we can include all possible interaction terms with video_length and assess which combinations look significant:
 
 ```{r}
+
 model_with_interaction <- linear_reg() |>
   set_engine("lm") |>
-  fit(followers ~ likes + plays + shares + comments + total_videos + likes*total_videos, data = train_transformed)
+  fit(followers ~  likes + shares + comments + total_videos + video_length + video_length*(likes + shares + comments + total_videos), data = train_transformed)
 
 model_with_interaction |>
-  tidy(conf.int = TRUE) |>
+  tidy() |>
   kable(digits = 3)
 ```
 
-We can see from the p-values in the table that all variables seem to be statistically significant with the interaction term. Therefore, those terms should certainly be in our model. The new p-value for comments is not less than our significance level of 0.05, but it is still low. We can perform CV on a model with likes:total_videos.
-
-Model 4 (with likes:total_videos interaction terms):
+We can see from the table that all variables are significant when interacting with video_lengthbin3 (p-value is less than significance level of 0.05) except for total_videos. Because of this, we know that we won't need to include the interaction term between total_videos and video_length. Also, given that comments has a high p-value in this new model, we can try removing comments from our model as well. We can use cross validation to test how a model without comments and with video_length interacting with shares and likes performs compared to our current model (Model 2):
 
 ```{r}
+#| message: false
+
 tiktok_recipe4 <- recipe(followers ~ ., data = train_transformed) |>
-  step_interact(~ likes:total_videos)
+  step_rm(plays) |>
+  step_interact(~ likes:video_length) |>
+  step_interact(~ shares:video_length) |>
+  step_rm(comments)
+  
 
 tiktok_wflow4 <- workflow() |>
   add_recipe(tiktok_recipe4) |>
@@ -361,6 +364,9 @@ tiktok_fit_rs4 <- tiktok_wflow4 |>
     resamples = folds, 
     control = control_resamples(save_pred = TRUE, extract = calc_model_stats)
   )
+```
+
+```{r}
 
 rmse4 <- collect_metrics(tiktok_fit_rs4, summarize = TRUE) |>
   filter(.metric == "rmse") |>
@@ -375,8 +381,6 @@ other_metrics4 <- map_df(tiktok_fit_rs4$.extracts, ~ .x[[1]][[1]]) |>
 combined_metrics4 <- bind_cols(rmse4, other_metrics4)
 combined_metrics4
 ```
-
-The mean RMSE (0.3282339) is barely smaller than that of model3, one without likes and video_length_bin (0.3389576). However given we are have included more terms, our adj r-square shows a clear increase (0.26883 to 0.3157319), BIC shows a slight increase (105.9608 to 108.3907), and AIC shows a slight decrease (88.243 to 81.8137). Because the increase in our adj r-square is very significant, AIC decreases, and BIC only increases by a small amount, we choose the new model, model 4.
 
 #### Conditions for Inference
 
