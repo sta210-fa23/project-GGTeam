@@ -382,6 +382,8 @@ combined_metrics4 <- bind_cols(rmse4, other_metrics4)
 combined_metrics4
 ```
 
+We can see that RMSE significantly decreased from about 6.6 million in Model 2 to 6.4 million in Model 4. We also see that adjusted r-squared increased, AIC decreased, and BIC decreased. All of these signs point to Model 4 being a better model in both fit and prediction. Therefore, we will remove comments, and add interactions between video_length and both shares and likes.
+
 #### Conditions for Inference
 
 Residual Plots for Followers vs. Predictors:
@@ -408,7 +410,7 @@ create_individual_residual_plot <- function(predictor, data) {
     )
 }
 
-predictor_vars <- c("likes", "shares", "comments", "plays", "total_videos")
+predictor_vars <- c("likes", "shares", "total_videos")
 individual_residual_plots <- map(predictor_vars, ~create_individual_residual_plot(.x, tiktok_users))
 
 combined_plots <- reduce(individual_residual_plots, `+`)
