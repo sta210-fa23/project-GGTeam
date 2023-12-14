@@ -33,9 +33,9 @@ tiktok <- read.csv("data/top_users_vids.csv")
 
 With over 1 billion users globally, TikTok is one of the fastest growing social platforms in the world. Understanding ubiquitous algorithm, which is said to generally account for account factors (likes and comments) and video information (captions, sounds, hashtags), is critical to understanding the app's many critiques, from [declining youth mental health outcomes](https://www.amnesty.org/en/latest/news/2023/11/tiktok-risks-pushing-children-towards-harmful-content/#:~:text=TikTok%20can%20lead%20you%20to%20very%20dark%20places&text=We%20found%20that%20within%2020,to%20depression%20and%20self%20harm.&text=Take%20urgent%20measures%20now%20to,rabbit%20holes%20of%20harmful%20content.) and its [addictive nature of its explore page](https://sites.brown.edu/publichealthjournal/2021/12/13/tiktok/). To better understand TikTok's social impact, we decided to explore TikTok's data and how follower count (a huge driver of engagement) is impacted by other aspects of a user's account, like average number of videos, average number of likes, and average number of comments. 
 
-The dataset comes from the 'top_users_vids.csv' file of this [Github repository](https://github.com/ivantran96/TikTok_famous/tree/main). The data was originally collected as part of the DataResolutions's Data Blog project exploring Tiktok's demographics and trending video analytics. 
+The dataset comes from the 'top_users_vids.csv' file of this [Github repository](https://github.com/ivantran96/TikTok_famous/tree/main), which was originally collected as part of the DataResolutions's Data Blog project exploring Tiktok's demographics and trending video analytics. 
 
-The original data curators collected the data using David Teather's open-source [Unofficial Tiktok API](https://github.com/davidteather/TikTok-Api), which uses Python to scrape Tiktok data and fetch the most trending videos, specific user information, and much more. Using the list of top Tiktokers, the curators expanded the list of users by collecting suggested users with the API's getSuggestedUsersbyIDCrawler method. They then collected video data of the 25 most recent posts of each user using the byUsername method. They also used the bySound method to collect videos using some of the most famous songs on TikTok to get an idea of how the choice of music can impact the potential of a video to start "trending."
+The original data curators collected the data using David Teather's open-source [Unofficial Tiktok API](https://github.com/davidteather/TikTok-Api), which uses Python to scrape Tiktok data and fetch the most trending videos, specific user information, and much more. The curators expanded the list of users by collecting suggested users with the API's getSuggestedUsersbyIDCrawler method. Using byUsername, they then collected video data of the 25 most recent posts of each user. They also used the bySound method to collect videos using some of the most famous songs on TikTok.
 
 #### EDA
 
@@ -52,7 +52,7 @@ It is apparent that we must address the potential issue user_name might have wit
 
 The less relevant variables are create time and video ID. In addition, hashtags and songs might not be useful. Most videos don't include a hashtag and there are too many unique instances of them for it to be valuable in our analysis. We could consider binning hashtag into none and at least 1 hashtag(s), however that wouldn't be useful for our analysis since its rare for tiktok followers to mind the number of hashtags. The same is true for songs; it wouldn't be useful to categorize all original songs as similar since most of them could just be user-edited snippets of actual songs.
 
-To address the issues mentioned above, we grouped the data by users and summarized relevant predictor variables by taking their mean. Our modified dataset has 8 columns and 254 observations, with each row being a user. Note that no data leakage is introduced in this process since we are just summarizing by the means of the predictor variable per user. When we split, it'll split based on observations, which are users. When this completed, we split our dataset into training and test sets:
+To address the issues mentioned above, we grouped the data by users and summarized relevant predictor variables by taking their mean. Our modified dataset has 8 columns and 254 observations, with each row being a user. No data leakage is introduced in this process since we are just summarizing by the means of the predictor variable per user. When this completed, we split our dataset into training and test sets:
 
 ```{r}
 #| include: false
@@ -110,6 +110,8 @@ The distribution of our response variable is unimodal and heavily right skewed. 
 Here are the distributions for the predictor variables we are interested in:
 
 ```{r}
+#| out.width="80%", out.height="80%"
+
 predictor_vars <- c("likes", "shares", "comments", "plays", "total_videos", "video_length")
 
 long_train <- tiktok_train |>
@@ -171,7 +173,7 @@ test_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_test)
 
 ## **Methodology**
 
-We want to use multiple linear regression to predict the number of followers a user has. We choose multiple linear regression rather than logistic regression because followers is a quantiative response variable. We start off with an initial model containing the predictors likes, shares, comments, plays, video_length (factor with 3 levels), total_videos, and followers, our response variable. Because Tiktok videos are commonly divided into 15-second, 1 minute, or 3 minute videos, we bin average video length into 3 levels, corresponding to "short", "medium" and "long." We also mean-center all our numerical variables to make our intercept meaningful, and we scale comments to hundreds, likes to millions, plays to tens of millions, shares to hundreds, and total_videos to units in order to make the coefficients of these predictors more interpretable. Here is a tidy table of our initial model:
+We are using multiple linear regression to predict the number of followers a user has, over logistic regression because followers is a quantiative response variable. We start off with an initial model containing the predictor's likes, shares, comments, plays, video_length (factor with 3 levels), total_videos, and followers. Because Tiktok videos are commonly divided into 15-second, 1 minute, or 3 minute videos, we bin average video length into 3 levels, corresponding to "short", "medium" and "long." We also mean-center all our numerical variables to make our intercept meaningful, and we scale comments to hundreds, likes to millions, plays to tens of millions, shares to hundreds, and total_videos to units for increased interpretability. Here is a tidy table of our initial model:
 
 ```{r initial-model}
 
@@ -189,6 +191,8 @@ initial_fit |>
 In assessing linearity and constant variance, it is important to look at Residual vs. Fitted plots for quantitative predictor variables (likes, shares, comments, plays, and total vidoes) and look for patterns and fanning:
 
 ```{r}
+#| out.width="80%", out.height="80%"
+
 create_individual_residual_plot <- function(predictor, data) {
   model <- linear_reg() |>
     set_engine("lm") |>
@@ -577,11 +581,11 @@ residuals_distribution_plot <- residuals_distribution_plot +
 ```
 
 ```{r}
-#| out.width="80%", out.height="60%"
+#| out.width="80%", out.height="40%"
 residuals_vs_fitted_plot + residuals_distribution_plot
 ```
 
-### TODO: final model condition analysis using the plots above
+Linearity is met because there's a random scatter across the horizontal axis in the residual plot. Normality is satisfied because we have more than 30 observations in the dataset. Independence is satisfied, as we still have no reason to believe the performance of one user's videos would impact another. Constant variance is satisfied because there is an even distribution of datapoints across residual model's y-axis.
 
 Final Model performance on testing set:
 
@@ -609,11 +613,11 @@ We then examined likes, which is the predictor with the largest effect on user f
 
 There are several terms that are significant when determining the number of followers a tik_tok user has. The number of total videos, comments, and plays seems to have a clear positive relationship with follower count. This also would align with our expectations, as the more videos you make, the more engagement your profile is likely to have and more followers you may gain. However, shares have a negative relationship with follower count, which initially seemed counter-intuitive. While it is impossible for the model to determine causality or explain why exactly a relationship exists, we hypothesize that users may share a video because they dislike it, resulting in them not following the user.
 
-When observing the video length bin variable, the middle video length bin (2) has statistically significant difference from the other two video length bins, as well as a statistically significant interaction term with total videos. This shows that not only do medium length videos generate the most followers, but medium length videos combined with a higher number of total videos significantly increase follower count as well. This is certainly an interesting finding from our analysis, as it isn't the most expected result.
+When observing the video length bin variable, the middle video length bin (2) has statistically significant difference from the other two video length bins, as well as a statistically significant interaction term with total videos. This shows that not only do medium length videos generate the most followers, but medium length videos combined with a higher number of total videos significantly increase follower count as well.
 
 ## Discussion + Conclusion
 
-We originally decided to look at TikTok's data and how follower count (a huge driver of engagement) is impacted by other aspects of a user's account. We learned that it is extremely difficult to correctly predict follower count, given our model only captures 36.2% of the variability in the dataset. More complex models seemed to only worsen performance, and we chose to prioritize parsimony for this reason - however, even the simple models did not predict well.
+We originally decided to look at TikTok's data and how follower count (a huge driver of engagement) is impacted by other aspects of a user's account. We learned that it is extremely difficult to correctly predict follower count, given our model only captures 17.7% of the variability in the dataset.
 
 Our dataset was extremely difficult to work with, given that it did not meet the conditions for linear regression (linearity and constant variance), and contained multicollinearity. The variables were also extremely large, and needed to be scaled down to have meaningful coefficients - which made late interpretation significantly more difficult. A more complex model was likely needed, that was beyond the scope of our knowledge, given how poorly our model performed at the end. There also may be underlying relationships between follower count, and other portions of the TikTok algorithm that are not contained in the dataset, which our model might have also failed to capture; in the real world, users have reported that TikTok enforces policies differently from user-to-user, and uses different algorithms from region to region.
 
