@@ -29,15 +29,13 @@ library(recipes)
 tiktok <- read.csv("data/top_users_vids.csv")
 ```
 
-#### Introduction and data
+### Introduction and data
 
 With over 1 billion users globally, TikTok is one of the fastest growing social platforms in the world. Understanding ubiquitous algorithm, which is said to generally account for account factors (likes and comments) and video information (captions, sounds, hashtags), is critical to understanding the app's many critiques, from [declining youth mental health outcomes](https://www.amnesty.org/en/latest/news/2023/11/tiktok-risks-pushing-children-towards-harmful-content/#:~:text=TikTok%20can%20lead%20you%20to%20very%20dark%20places&text=We%20found%20that%20within%2020,to%20depression%20and%20self%20harm.&text=Take%20urgent%20measures%20now%20to,rabbit%20holes%20of%20harmful%20content.) and its [addictive nature of its explore page](https://sites.brown.edu/publichealthjournal/2021/12/13/tiktok/). To better understand TikTok's social impact, we decided to explore TikTok's data and how follower count (a huge driver of engagement) is impacted by other aspects of a user's account, like average number of videos, average number of likes, and average number of comments. 
 
-The dataset comes from the 'top_users_vids.csv' file of this [Github repository](https://github.com/ivantran96/TikTok_famous/tree/main), which was originally collected as part of the DataResolutions's Data Blog project exploring Tiktok's demographics and trending video analytics. 
+The dataset comes from the 'top_users_vids.csv' file of this [Github repository](https://github.com/ivantran96/TikTok_famous/tree/main), which was originally collected as part of the DataResolutions's Data Blog project exploring Tiktok's demographics and trending video analytics. The original data curators collected the data using David Teather's open-source [Unofficial Tiktok API](https://github.com/davidteather/TikTok-Api), which uses Python to scrape Tiktok data and fetch the most trending videos, specific user information, and much more. The curators expanded the list of users by collecting suggested users with the API's getSuggestedUsersbyIDCrawler method. Using byUsername, they then collected video data of the 25 most recent posts of each user. They also used the bySound method to collect videos using some of the most famous songs on TikTok.
 
-The original data curators collected the data using David Teather's open-source [Unofficial Tiktok API](https://github.com/davidteather/TikTok-Api), which uses Python to scrape Tiktok data and fetch the most trending videos, specific user information, and much more. The curators expanded the list of users by collecting suggested users with the API's getSuggestedUsersbyIDCrawler method. Using byUsername, they then collected video data of the 25 most recent posts of each user. They also used the bySound method to collect videos using some of the most famous songs on TikTok.
-
-#### EDA
+### EDA
 
 We begin our EDA process by first examining the dataset.
 
@@ -48,7 +46,7 @@ names(tiktok)
 
 Currently, our dataset tiktok has 13 columns and 12,559 observations. Each row is a video. The columns cover attributes of each video such as video length, hashtags used, songs/sounds used, and statistics (number of likes, shares, comments, plays, followers, and total number of likes and videos across the account). Variables id, create_time, video_length, n_likes, n_shares, n_comments, n_plays, n_followers, n_total_likes, and n_total_vids are numerical while the others are categorical.
 
-It is apparent that we must address the potential issue user_name might have with the other columns. If we simply drop it, we could face multicollinearity, where the number of plays or likes on a video is closely tied to the user who posted it. So, excluding information about the user could lead to incomplete analysis, as the user-related factors become confounding variables. Getting rid of "user_name" also means losing important user-specific details like followers, total likes, and total videos (n_followers, n_total_likes, n_total_vids).
+It is apparent that we must address the potential issue user_name might have with the other columns. If we simply drop it, we could face multicollinearity, where the number of plays or likes on a video is closely tied to the user who posted it. So, excluding information about the user could lead to incomplete analysis, as the user-related factors become confounding variables.
 
 The less relevant variables are create time and video ID. In addition, hashtags and songs might not be useful. Most videos don't include a hashtag and there are too many unique instances of them for it to be valuable in our analysis. We could consider binning hashtag into none and at least 1 hashtag(s), however that wouldn't be useful for our analysis since its rare for tiktok followers to mind the number of hashtags. The same is true for songs; it wouldn't be useful to categorize all original songs as similar since most of them could just be user-edited snippets of actual songs.
 
@@ -110,7 +108,7 @@ The distribution of our response variable is unimodal and heavily right skewed. 
 Here are the distributions for the predictor variables we are interested in:
 
 ```{r}
-#| out.width="80%", out.height="80%"
+#| out.width="60%", out.height="60%"
 
 predictor_vars <- c("likes", "shares", "comments", "plays", "total_videos", "video_length")
 
@@ -171,7 +169,7 @@ train_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_train)
 test_transformed <- bake(prepped_tiktok_recipe, new_data = tiktok_test)
 ```
 
-## **Methodology**
+### **Methodology**
 
 We are using multiple linear regression to predict the number of followers a user has, over logistic regression because followers is a quantiative response variable. We start off with an initial model containing the predictor's likes, shares, comments, plays, video_length (factor with 3 levels), total_videos, and followers. Because Tiktok videos are commonly divided into 15-second, 1 minute, or 3 minute videos, we bin average video length into 3 levels, corresponding to "short", "medium" and "long." We also mean-center all our numerical variables to make our intercept meaningful, and we scale comments to hundreds, likes to millions, plays to tens of millions, shares to hundreds, and total_videos to units for increased interpretability. Here is a tidy table of our initial model:
 
@@ -244,9 +242,10 @@ wrap_elements(final_plot) +
   )
 ```
 
-We can see from the residual plots that there doesn't appear to be any non-random patterns that violate linearity. Therefore, we can conclude that the linearity condition is satisfied. However, there does appear to be a clear outward fanning spread for each each predictor, meaning that constant variance is not satisfied. To solve this, we can log-transform our response variable (followers) and see if the fanning is minimized:
+We can see from the residual plots that there doesn't appear to be any non-random patterns that violate linearity. Therefore, we can conclude that the linearity condition is satisfied. However, there does appear to be a clear outward fanning spread for each each predictor, meaning that constant variance is not satisfied. To resolve this, we log-transform our response variable (followers) and see if the fanning is minimized:
 
 ```{r}
+#| out.width="80%", out.height="80%"
 train_transformed <- train_transformed |>
   mutate(followers = log(followers))
 
@@ -434,7 +433,7 @@ combined_metrics2
 
 The difference between the model's evaluations aren't large. Model 1 has a higher RMSE, while it has a lower AIC and BIC, and a higher adjusted r-squared. In this case, we would consider model 2 (the model without plays) to be a better model, because it has a lower RMSE, which is gathered from the assessment set and is used to assess prediction. The goal of our model is to predict followers, so we want to choose the model with better predictive power (Model 2). Therefore, we remove plays from our model.
 
-### Determining whether video_length_bin are necessary
+#### Determining whether video_length_bin are necessary
 
 We saw from our initial tidy table that the p-values associated with video length bins are high, indicating that the variables may not be significant. Because of this, we can once again perform cross validation to test how a model without video_length compares to our current model (Model 1):
 
@@ -478,7 +477,7 @@ combined_metrics3
 
 We can see that when we remove video_length, RMSE is slightly higher than it was for Model 2, while AIC remains about the same and BIC slightly decreases. We also see that adjusted r-squared remains about the same. Therefore, despite BIC slightly decreasing, we prefer the model with a lower RMSE (better prediction), so we don't want to remove video_length from our model.
 
-### Determining whether interaction terms are needed
+#### Determining whether interaction terms are needed
 
 Our only categorical variable in our model is video_length. Therefore, we chose to assess all possible interaction terms with video_length for statistical significance:
 
@@ -533,7 +532,7 @@ combined_metrics4
 
 We can see that RMSE significantly decreased from about 6.6 million in Model 2 to 6.4 million in Model 4. We also see that adjusted r-squared increased, AIC decreased, and BIC decreased. All of these signs point to Model 4 being a better model in both fit and prediction. Therefore, we will remove comments, and add interactions between video_length and both shares and likes.
 
-## Results
+### Results
 
 After removing plays and comments and adding interaction terms between video_length and both likes and shares, we arrive at our final model:
 
@@ -581,7 +580,7 @@ residuals_distribution_plot <- residuals_distribution_plot +
 ```
 
 ```{r}
-#| out.width="80%", out.height="40%"
+#| out.width="70%", out.height="40%"
 residuals_vs_fitted_plot + residuals_distribution_plot
 ```
 
@@ -605,7 +604,7 @@ combined_metrics4 |>
   kable(digits = 3)
 ```
 
-Note that we log transformed our response variable. In order to evaluate the meaning of our RMSE of 0.510, we take exp(0.510) \~ 1.665. This value is the multiplicative square difference. For example, if have log followers of 16.04552, our model will be more or less off by $16.04552 \pm 0.510^2 \implies \exp(16.04552 \pm 0.2601) \implies 7170028 < 9,299,954 < 12,062,597$. (this is evaluated using average sum of square difference, so the range would be larger). This means our model does a fairly poor at predicting a tiktok user's followers. We also have an RSQ of 0.177, indicating only 17.7% of the variability in followers can be explained by our predictor variables.
+Note that we log transformed our response variable. In order to evaluate the meaning of our RMSE of 0.510, we take exp(0.510) \~ 1.665. This value is the multiplicative square difference. For example, if have log followers of 16.04552, our model will be more or less off by $16.04552 \pm 0.510^2$ $\implies \exp(16.04552 \pm 0.2601) \implies 7170028 < 9,299,954 < 12,062,597$ (this is evaluated using average sum of square difference, so the range would be larger). This means our model does a fairly poor at predicting a tiktok user's followers. We also have an RSQ of 0.177, indicating only 17.7% of the variability in followers can be explained by our predictor variables.
 
 Our interpretation for the intercept is as follows: We expect the tiktok user with the mean number of likes, shares, total_videos, and with an average video length belonging to bin_length1 to have around 14,590,774 followers (exp\[16.4959\]), on average.
 
@@ -613,11 +612,11 @@ We then examined likes, which is the predictor with the largest effect on user f
 
 There are several terms that are significant when determining the number of followers a tik_tok user has. The number of total videos, comments, and plays seems to have a clear positive relationship with follower count. This also would align with our expectations, as the more videos you make, the more engagement your profile is likely to have and more followers you may gain. However, shares have a negative relationship with follower count, which initially seemed counter-intuitive. While it is impossible for the model to determine causality or explain why exactly a relationship exists, we hypothesize that users may share a video because they dislike it, resulting in them not following the user.
 
-When observing the video length bin variable, the longest video length bin (3) has statistically significant difference from the other two video length bins and a statistically significant interaction term with likes and shares. This shows that not only do long length videos generate the most followers, but long length videos combined with a higher likes and shares indicate a higher follower count as well. This makes sense since viewers will be more invested in long videos (as can be confirmed by positive engagement), encouraging them to follow the creator.
+When observing the video length bin variable, the longest video length bin (3) has statistically significant difference from the other two video length bins and a statistically significant interaction term with likes and shares. This suggests that a higher average video length of a user has may effect the user's followers count more significantly.
 
-## Discussion + Conclusion
+### Discussion + Conclusion
 
-We originally decided to look at TikTok's data and how follower count (a huge driver of engagement) is impacted by other aspects of a user's account. We learned that it is extremely difficult to correctly predict follower count, given our model only captures 17.7% of the variability in the dataset. However, with our given model, we found it interesting that users with longer average videos lengths has a negative effect on the average likes a user could have. For example, in our final model, the coefficient for likes:video_bins3 is -0.344, which is a significant decrease from the baseline with likes:video_bins1 at 0.3925.
+We originally decided to look at TikTok's data and how follower count (a huge driver of engagement) is impacted by other aspects of a user's account. We learned that it is extremely difficult to correctly predict follower count, given our model only captures 17.7% of the variability in the dataset. Even still, we found it interesting that users with longer average videos lengths has a negative effect on the average likes a user could have. For example, in our final model, the coefficient for likes:video_bins3 is -0.344, which is a significant decrease from the baseline with likes:video_bins1 at 0.3925.
 
 Our dataset was extremely difficult to work with, given that it did not meet the conditions for linear regression (linearity and constant variance), and contained multicollinearity. The variables were also extremely large, and needed to be scaled down to have meaningful coefficients - which made interpretations significantly more difficult. A more complex model is likely needed, given how poorly our model performed at the end. There also may be underlying relationships between follower count, and other portions of the TikTok algorithm that are not contained in the dataset, which our model might have also failed to capture; in the real world, users have reported that TikTok enforces policies differently from user-to-user, and uses different algorithms from region to region.
 
@@ -638,8 +637,6 @@ head(tiktok_users, 5)
 ```
 
 Split results:
-
-\<a name="appendix"\>\</a\>
 
 ```{r}
 tiktok_split
